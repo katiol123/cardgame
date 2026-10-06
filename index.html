@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ярость трассы — боевые мотогонки «три в ряд»</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;800&family=Russo+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="bg-grid"></div>
+
+  <header class="topbar">
+    <div class="logo"><span class="logo-a">ЯРОСТЬ</span><span class="logo-b">ТРАССЫ</span></div>
+    <div class="race-info">
+      <div class="chip"><span class="chip-l">Раунд</span><b id="roundNo">1</b></div>
+      <div class="chip"><span class="chip-l">Ход</span><b id="turnName">—</b></div>
+      <div class="chip"><span class="chip-l">Лидер</span><b id="leaderName">—</b></div>
+    </div>
+    <div class="controls">
+      <button id="btnPause" class="btn icon" title="Пауза (пробел)">❚❚</button>
+      <div class="speed-group" id="speedGroup">
+        <button data-speed="1" class="btn seg">1×</button>
+        <button data-speed="2" class="btn seg active">2×</button>
+        <button data-speed="4" class="btn seg">4×</button>
+        <button data-speed="10" class="btn seg">10×</button>
+      </div>
+      <button id="btnRules" class="btn">Правила</button>
+      <button id="btnRestart" class="btn">Новая гонка</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel standings">
+      <div class="panel-title">Позиции <small>щёлкни по гонщику, чтобы смотреть его поле</small></div>
+      <div class="stand-list" id="standList"></div>
+    </aside>
+
+    <section class="center">
+      <div class="panel track-wrap" id="trackWrap">
+        <svg id="trackSvg" viewBox="0 20 1020 700" preserveAspectRatio="xMidYMid meet"></svg>
+        <canvas id="trackFx"></canvas>
+        <div class="track-legend" id="trackLegend"></div>
+        <div class="banner" id="banner"></div>
+      </div>
+      <div class="panel racer-card" id="racerCard"></div>
+    </section>
+
+    <aside class="panel board-panel" id="boardPanel">
+      <div class="board-head" id="boardHead"></div>
+      <div class="board-shell">
+        <div class="board" id="board"></div>
+        <canvas id="boardFx"></canvas>
+        <div class="board-overlay" id="boardOverlay"></div>
+      </div>
+      <div class="gains" id="gains"></div>
+      <div class="gem-legend" id="gemLegend"></div>
+      <div class="log" id="log"></div>
+    </aside>
+  </main>
+
+  <div class="flyers" id="flyers"></div>
+
+  <div class="modal show" id="intro">
+    <div class="modal-card intro-card">
+      <div class="intro-logo"><span class="logo-a">ЯРОСТЬ</span><span class="logo-b">ТРАССЫ</span></div>
+      <p class="intro-sub">Боевые мотогонки · 16 гонщиков · три в ряд</p>
+      <div class="intro-grid" id="introGrid"></div>
+      <p class="intro-text">Каждый гонщик — ИИ, который по очереди делает ход на своём поле «три в ряд». Собранные блоки превращаются в скорость, нитро, патроны, броню, ремонт и сцепление — а они двигают фишку по трассе и стреляют по соперникам. Ты — зритель: выбирай любого гонщика и смотри на его поле.</p>
+      <div class="intro-btns">
+        <button class="btn big primary" id="btnStart">НА СТАРТ!</button>
+        <button class="btn big" id="btnRules2">Правила</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="rules">
+    <div class="modal-card rules-card">
+      <button class="close" data-close="rules">✕</button>
+      <h2>Правила гонки</h2>
+      <div id="rulesBody"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="results">
+    <div class="modal-card results-card">
+      <h2>Финиш!</h2>
+      <div class="podium" id="podium"></div>
+      <div class="results-table" id="resultsTable"></div>
+      <div class="intro-btns"><button class="btn big primary" id="btnAgain">Новая гонка</button></div>
+    </div>
+  </div>
+
+  <div class="countdown" id="countdown"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/board.js"></script>
+  <script src="js/track.js"></script>
+  <script src="js/race.js"></script>
+  <script src="js/fx.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>
