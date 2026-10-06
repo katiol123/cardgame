@@ -8,7 +8,7 @@
   const fmt = v => (Math.round(v * 10) / 10).toString().replace('.', ',');
   const DIR = { front: 'вперёд', rear: 'назад', both: 'круговой' };
 
-  const state = { race: null, track: null, selected: 0, speed: 2, paused: false, epoch: 0, raceId: 0, acting: -1 };
+  const state = { race: null, track: null, selected: 0, speed: 2, paused: false, epoch: 0, raceId: 0, acting: -1, skip: false, autopilot: false, rain: false, menuRoster: null };
 
   // ---------- время ----------
   function untilUnpaused() {
@@ -31,63 +31,89 @@
     tokens: {},
     build(track, racers) {
       const svg = $('#trackSvg');
-      const N = track.N, step = track.step;
+      const step = track.step, th = (track.def && track.def.theme) || { ground: '#0d1a14', stripe: '#122a1d', deco: 'trees' };
+      const road = (d, extra) => `<path d="${d}" fill="none" stroke="#000" stroke-width="86" opacity=".55" filter="url(#blur8)"/>
+      <path d="${d}" fill="none" stroke="#e8e8e8" stroke-width="70"/>
+      <path d="${d}" fill="none" stroke="#e0262f" stroke-width="70" stroke-dasharray="14 14"/>
+      <path d="${d}" fill="none" stroke="#24272f" stroke-width="60"/>
+      <path d="${d}" fill="none" stroke="#2c303a" stroke-width="44"/>${extra || ''}`;
       let h = `<defs>
         <pattern id="grass" width="40" height="40" patternUnits="userSpaceOnUse">
-          <rect width="40" height="40" fill="#0d1a14"/>
-          <path d="M0 40L40 0M-10 10L10-10M30 50L50 30" stroke="#122a1d" stroke-width="6"/>
+          <rect width="40" height="40" fill="${th.ground}"/>
+          <path d="M0 40L40 0M-10 10L10-10M30 50L50 30" stroke="${th.stripe}" stroke-width="6"/>
         </pattern>
         <pattern id="checker" width="8" height="8" patternUnits="userSpaceOnUse">
           <rect width="8" height="8" fill="#fff"/><rect width="4" height="4" fill="#111"/><rect x="4" y="4" width="4" height="4" fill="#111"/>
         </pattern>
+        <pattern id="waves" width="60" height="20" patternUnits="userSpaceOnUse">
+          <rect width="60" height="20" fill="#0b2a44"/><path d="M0 12q15-8 30 0t30 0" stroke="#1d5b86" stroke-width="2" fill="none"/>
+        </pattern>
         <radialGradient id="vign" cx="50%" cy="50%" r="70%"><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".7"/></radialGradient>
         <filter id="blur8"><feGaussianBlur stdDeviation="8"/></filter>
-        <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
       </defs>
-      <rect x="-50" y="-50" width="1150" height="850" fill="url(#grass)"/>
-      <g opacity=".5">${TV.scenery()}</g>
-      <path d="${track.path}" fill="none" stroke="#000" stroke-width="86" opacity=".55" filter="url(#blur8)"/>
-      <path d="${track.path}" fill="none" stroke="#e8e8e8" stroke-width="70"/>
-      <path d="${track.path}" fill="none" stroke="#e0262f" stroke-width="70" stroke-dasharray="14 14"/>
-      <path d="${track.path}" fill="none" stroke="#24272f" stroke-width="60"/>
-      <path d="${track.path}" fill="none" stroke="#2c303a" stroke-width="44"/>
-      <path class="track-flow" d="${track.path}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="56" stroke-dasharray="2 38"/>`;
-      // клетки
-      h += '<g class="cells">';
-      track.cells.forEach(c => {
+      <rect x="-50" y="-50" width="1150" height="850" fill="url(#grass)"/>`;
+      if (th.water === 'bottom') h += '<rect class="water" x="-50" y="684" width="1150" height="100" fill="url(#waves)"/>';
+      if (th.water === 'right') h += '<rect class="water" x="972" y="-50" width="120" height="850" fill="url(#waves)"/>';
+      h += `<g opacity=".6">${TV.scenery(track, th)}</g>`;
+      h += road(track.path, `<path class="track-flow" d="${track.path}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="56" stroke-dasharray="2 38"/>`);
+      const cellSvg = c => {
         const deg = c.a * 180 / Math.PI;
         let cls = 'cell';
         if (c.corner === 2) cls += ' c-hair'; else if (c.corner) cls += ' c-turn';
         if (c.kind !== 'plain') cls += ' k-' + c.kind;
+        if (c.tunnel) cls += ' tun';
         const w = step - 4;
-        h += `<g class="${cls}" transform="translate(${c.x.toFixed(1)} ${c.y.toFixed(1)}) rotate(${deg.toFixed(1)})">
+        let o = `<g class="${cls}" transform="translate(${c.x.toFixed(1)} ${c.y.toFixed(1)}) rotate(${deg.toFixed(1)})">
           <rect x="${-w / 2}" y="-23" width="${w}" height="46" rx="6"/>`;
-        if (c.corner) {
-          const s = c.turn > 0 ? 1 : -1;
-          h += `<path class="chev" d="M-6 ${-14 * s} 3 ${-14 * s + 0} M-6 ${-14 * s} 0 ${-8 * s}" />`;
-          h += `<path class="chev-line" d="M${-w / 2 + 2} ${s * 21}h${w - 4}"/>`;
-        }
-        if (c.kind !== 'plain') {
-          h += `<g transform="rotate(${(-deg).toFixed(1)})"><circle r="11" fill="${Art.CELL_COLOR[c.kind]}" opacity=".9"/><g transform="scale(.9)">${Art.CELL_ICON[c.kind]}</g></g>`;
-        } else if (c.i % 6 === 0) {
-          h += `<text class="cnum" transform="rotate(${(-deg).toFixed(1)})" y="4">${c.i}</text>`;
-        }
-        h += '</g>';
-      });
-      h += '</g>';
+        if (c.corner) { const s = c.turn > 0 ? 1 : -1; o += `<path class="chev-line" d="M${-w / 2 + 2} ${s * 21}h${w - 4}"/>`; }
+        if (c.kind !== 'plain') o += `<g transform="rotate(${(-deg).toFixed(1)})"><circle r="11" fill="${Art.CELL_COLOR[c.kind]}" opacity=".9"/><g transform="scale(.9)">${Art.CELL_ICON[c.kind]}</g></g>`;
+        else if (c.i % 6 === 0) o += `<text class="cnum" transform="rotate(${(-deg).toFixed(1)})" y="4">${c.i}</text>`;
+        return o + '</g>';
+      };
+      // мост «восьмёрки»: второй проход по кругу рисуем поверх
+      let bridge = [];
+      if (track.crossing) {
+        const P = track.def.cross || track.def.points[0], near = track.cells.map((c, k) => [Math.hypot(c.x - P[0], c.y - P[1]), k]).sort((a, b) => a[0] - b[0]);
+        const c1 = near[0][1], c2 = near.find(x => Math.abs(x[1] - c1) > track.N / 4)[1];
+        for (let k = -2; k <= 2; k++) bridge.push((c2 + k + track.N) % track.N);
+      }
+      h += '<g class="cells">' + track.cells.filter(c => !bridge.includes(c.i)).map(cellSvg).join('') + '</g>';
+      if (bridge.length) {
+        const pts = [];
+        for (let f = -2.6; f <= 2.6; f += 0.2) { const p = track.pointAt(bridge[2] + f); pts.push(`${p.x.toFixed(1)} ${p.y.toFixed(1)}`); }
+        const d = 'M' + pts.join(' L');
+        h += `<path d="${d}" fill="none" stroke="#000" stroke-width="100" opacity=".6" filter="url(#blur8)"/>
+          <path d="${d}" fill="none" stroke="#8a93a8" stroke-width="76"/><path d="${d}" fill="none" stroke="#24272f" stroke-width="64"/><path d="${d}" fill="none" stroke="#2c303a" stroke-width="44"/>`;
+        h += '<g class="cells">' + bridge.map(k => cellSvg(track.cells[k])).join('') + '</g>';
+        const bp = track.pointAt(bridge[2]);
+        h += `<g transform="translate(${bp.x.toFixed(0)} ${(bp.y - 50).toFixed(0)})"><text class="zone-label bridge">МОСТ</text></g>`;
+      }
+      // тоннель
+      const tun = track.cells.filter(c => c.tunnel);
+      if (tun.length) {
+        const pts = [];
+        for (let f = tun[0].i - 0.5; f <= tun[tun.length - 1].i + 0.5; f += 0.25) { const p = track.pointAt(f); pts.push(`${p.x.toFixed(1)} ${p.y.toFixed(1)}`); }
+        h += `<path d="M${pts.join(' L')}" fill="none" stroke="rgba(0,0,0,.55)" stroke-width="74" stroke-linecap="butt"/>
+          <path d="M${pts.join(' L')}" fill="none" stroke="rgba(255,210,120,.35)" stroke-width="74" stroke-dasharray="3 22"/>`;
+        const m = tun[Math.floor(tun.length / 2)];
+        h += `<g transform="translate(${m.x.toFixed(0)} ${(m.y - 48).toFixed(0)})"><text class="zone-label tunnel">ТОННЕЛЬ</text></g>`;
+      }
       // старт/финиш
       const sp = track.pointAt(-0.5);
+      const nx = -Math.sin(sp.a), ny = Math.cos(sp.a);
       h += `<g transform="translate(${sp.x} ${sp.y}) rotate(${sp.a * 180 / Math.PI})">
         <rect x="-5" y="-31" width="10" height="62" fill="url(#checker)"/>
         <rect x="-5" y="-31" width="10" height="62" fill="none" stroke="#000" stroke-width="1"/></g>
-        <g transform="translate(${sp.x} ${sp.y + 54})"><text class="start-label">СТАРТ · ФИНИШ</text></g>`;
-      // подписи поворотов
-      track.zones.forEach(z => {
-        const mid = track.cells[Math.floor((z.from + z.to) / 2)];
-        const n = (mid.turn > 0 ? 1 : -1);
-        const x = mid.x + Math.cos(mid.a + n * Math.PI / 2) * 52, y = mid.y + Math.sin(mid.a + n * Math.PI / 2) * 52;
-        h += `<g transform="translate(${x.toFixed(0)} ${y.toFixed(0)})"><text class="zone-label ${z.sev === 2 ? 'hair' : ''}">${z.sev === 2 ? '⚠ СЕРПАНТИН' : 'ПОВОРОТ'}</text></g>`;
-      });
+        <g transform="translate(${(sp.x + nx * 52).toFixed(0)} ${(sp.y + ny * 52 + 4).toFixed(0)})"><text class="start-label">СТАРТ · ФИНИШ</text></g>`;
+      // подписи: реальные названия поворотов или общие
+      const cx = 510, cy = 370;
+      const label = (c, text, cls) => {
+        let dx = c.x - cx, dy = c.y - cy; const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+        const x = clamp(c.x + dx * 50, 50, 970), y = clamp(c.y + dy * 46, 40, 705);
+        return `<g transform="translate(${x.toFixed(0)} ${y.toFixed(0)})"><text class="zone-label ${cls}">${text}</text></g>`;
+      };
+      if (track.labels && track.labels.length) track.labels.forEach(l => { const c = track.cells[l.cell]; h += label(c, l.text, c.corner === 2 || c.zoneSev === 2 ? 'hair' : c.corner ? '' : 'calm'); });
+      else track.zones.forEach(z => { const c = track.cells[Math.floor((z.from + z.to) / 2)]; h += label(c, z.sev === 2 ? '⚠ СЕРПАНТИН' : 'ПОВОРОТ', z.sev === 2 ? 'hair' : ''); });
       h += '<g id="tokens"></g><rect x="-50" y="-50" width="1150" height="850" fill="url(#vign)" pointer-events="none"/>';
       svg.innerHTML = h;
       // фишки
@@ -95,10 +121,10 @@
       TV.tokens = {};
       racers.forEach(r => {
         const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        g.setAttribute('class', 'token');
+        g.setAttribute('class', 'token' + (r.human ? ' human' : ''));
         g.innerHTML = `<circle class="t-aura" r="22" fill="${r.color}"/><circle class="t-shadow" r="15" cy="3" fill="#000" opacity=".5"/>
           <circle class="t-base" r="15" fill="#11141c" stroke="${r.color}" stroke-width="3"/>
-          <g transform="translate(-14 -15)">${Art.helmet(r, 28)}</g>`;
+          <g transform="translate(-14 -15)">${Art.helmet(r, 28)}</g>${r.human ? '<text class="t-you" y="-21">ВЫ</text>' : ''}`;
         g.addEventListener('click', () => selectRacer(r.id));
         layer.appendChild(g);
         TV.tokens[r.id] = { el: g, pos: r.pos, lat: 0, along: 0, tLat: 0, tAlong: 0, hop: null, scale: 1, shake: 0 };
@@ -106,19 +132,39 @@
       TV.relayout(true);
       if (!TV.raf) TV.raf = requestAnimationFrame(TV.frame);
     },
-    scenery() {
-      // деревья/камни/трибуны вокруг трассы — декоративно
+    scenery(track, th) {
       let s = '';
-      const rnd = window.mulberry32(7);
-      for (let i = 0; i < 70; i++) {
+      const rnd = window.mulberry32(track.N * 31 + track.def.points.length);
+      const free = (x, y, d) => track.cells.every(c => Math.hypot(c.x - x, c.y - y) > d);
+      let placed = 0;
+      for (let i = 0; i < 400 && placed < 90; i++) {
         const x = rnd() * 1020, y = 30 + rnd() * 690;
-        const t = rnd();
-        if (t < 0.6) s += `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${(6 + rnd() * 10).toFixed(0)}" fill="#163524"/>`;
-        else s += `<rect x="${x.toFixed(0)}" y="${y.toFixed(0)}" width="${(8 + rnd() * 14).toFixed(0)}" height="${(6 + rnd() * 8).toFixed(0)}" rx="2" fill="#1c2620" transform="rotate(${(rnd() * 90).toFixed(0)} ${x.toFixed(0)} ${y.toFixed(0)})"/>`;
+        if (!free(x, y, 62)) continue;
+        if (th.water === 'bottom' && y > 676) continue;
+        if (th.water === 'right' && x > 960) continue;
+        placed++;
+        const t = rnd(), X = x.toFixed(0), Y = y.toFixed(0);
+        if (th.deco === 'city') {
+          const w = 14 + rnd() * 26, hh = 12 + rnd() * 22;
+          s += `<rect x="${X}" y="${Y}" width="${w.toFixed(0)}" height="${hh.toFixed(0)}" rx="2" fill="#1b2232" stroke="#28324a"/>`;
+          if (t < 0.6) s += `<rect x="${(x + 3).toFixed(0)}" y="${(y + 3).toFixed(0)}" width="3" height="3" fill="#ffd27a" opacity=".7"/><rect x="${(x + 9).toFixed(0)}" y="${(y + 3).toFixed(0)}" width="3" height="3" fill="#ffd27a" opacity=".5"/>`;
+        } else if (th.deco === 'desert') {
+          if (t < 0.5) s += `<ellipse cx="${X}" cy="${Y}" rx="${(6 + rnd() * 12).toFixed(0)}" ry="${(4 + rnd() * 7).toFixed(0)}" fill="#3a3220"/>`;
+          else s += `<circle cx="${X}" cy="${Y}" r="${(5 + rnd() * 8).toFixed(0)}" fill="#2a3318"/>`;
+        } else if (th.deco === 'walls') {
+          if (t < 0.45) s += `<rect x="${X}" y="${Y}" width="${(20 + rnd() * 30).toFixed(0)}" height="5" rx="2" fill="#4a4a48" transform="rotate(${(rnd() * 180).toFixed(0)} ${X} ${Y})"/>`;
+          else if (t < 0.8) s += `<circle cx="${X}" cy="${Y}" r="${(6 + rnd() * 9).toFixed(0)}" fill="#18361f"/>`;
+          else s += `<rect x="${X}" y="${Y}" width="14" height="11" fill="#2b2a2a" stroke="#555"/><path d="M${x - 1} ${Y}l8 -7 8 7" fill="#5a2a1f"/>`;
+        } else {
+          if (t < 0.75) s += `<circle cx="${X}" cy="${Y}" r="${(6 + rnd() * 11).toFixed(0)}" fill="#163524"/><circle cx="${(x - 2).toFixed(0)}" cy="${(y - 2).toFixed(0)}" r="${(3 + rnd() * 4).toFixed(0)}" fill="#1f4a30"/>`;
+          else s += `<rect x="${X}" y="${Y}" width="${(8 + rnd() * 14).toFixed(0)}" height="${(6 + rnd() * 8).toFixed(0)}" rx="2" fill="#1c2620" transform="rotate(${(rnd() * 90).toFixed(0)} ${X} ${Y})"/>`;
+        }
       }
-      // трибуны
-      s += '<g fill="#1a1f2b" stroke="#2c3446"><rect x="380" y="672" width="300" height="34" rx="4"/><rect x="760" y="250" width="70" height="20" rx="3" transform="rotate(-20 760 250)"/></g>';
-      s += '<g fill="#3a4258">' + Array.from({ length: 28 }, (_, i) => `<circle cx="${392 + i * 10.4}" cy="${682 + (i % 2) * 10}" r="3" fill="hsl(${(i * 47) % 360} 70% 60%)"/>`).join('') + '</g>';
+      // трибуна у старта
+      const sp = track.pointAt(-1.5), nx = -Math.sin(sp.a), ny = Math.cos(sp.a);
+      const gx = sp.x - nx * 64, gy = sp.y - ny * 64;
+      s += `<g transform="translate(${gx.toFixed(0)} ${gy.toFixed(0)}) rotate(${(sp.a * 180 / Math.PI).toFixed(1)})"><rect x="-130" y="-14" width="260" height="28" rx="4" fill="#1a1f2b" stroke="#2c3446"/>` +
+        Array.from({ length: 24 }, (_, i) => `<circle cx="${-120 + i * 10.4}" cy="${-5 + (i % 2) * 10}" r="3" fill="hsl(${(i * 47) % 360} 70% 60%)"/>`).join('') + '</g>';
       return s;
     },
     // распределяет фишки на одной клетке по «полосам»
@@ -141,11 +187,11 @@
         });
       });
     },
-    hop(id, from, to, dur) {
+    hop(id, from, to, dur, big) {
       const t = TV.tokens[id];
       if (t.hop) { t.hop.resolve(); }
       return new Promise(res => {
-        t.hop = { from, to, start: performance.now(), dur: Math.max(60, dur), resolve: res };
+        t.hop = { from, to, start: performance.now(), dur: Math.max(60, dur), resolve: res, big };
         TV.relayout(false);
       });
     },
@@ -169,6 +215,7 @@
               const fr = Math.abs(t.pos - t.hop.from);
               lift = Math.abs(Math.sin(Math.PI * (fr % 1 || (fr > 0 ? 1 : 0))));
               if (Math.abs(t.hop.to - t.hop.from) < 1) lift = Math.sin(Math.PI * k);
+              if (t.hop.big) lift = Math.sin(Math.PI * k) * 3;
             }
           }
           t.lat += (t.tLat - t.lat) * 0.15;
@@ -553,8 +600,8 @@
       $('#racerCard').innerHTML = `
         <div class="rc-id" style="--rc:${r.color}">
           <div class="rc-ava">${Art.helmet(r, 74)}</div>
-          <div class="rc-name"><small>№${r.num}</small>${r.name}</div>
-          <div class="rc-tags"><span class="tag place" id="c-place"></span><span class="tag" id="c-lap"></span><span class="tag status" id="c-status"></span></div>
+          <div class="rc-name"><small>№${r.num}${r.human ? ' · ВЫ' : ''}</small>${r.name}</div>
+          <div class="rc-tags"><span class="tag place" id="c-place"></span><span class="tag" id="c-lap"></span><span class="tag status" id="c-status"></span><span class="tag champ" id="c-champ"></span></div>
         </div>
         <div class="rc-stats">
           ${statBar('Разгон', r.stats.accel, `+${fmt(F.accel(r))} скор./ход`, 's-acc')}
@@ -614,6 +661,7 @@
       else if (r.burn) { st = `🔥 горит: ${r.burn.turns} х.`; sc = 'warn'; }
       else if (r.id === state.acting) { st = 'ходит'; sc = 'go'; }
       const s = $('#c-status'); s.textContent = st; s.className = 'tag status ' + sc;
+      if (Champ.d && Champ.d.points) { const cs = Champ.standings(); $('#c-champ').textContent = `🏆 ${Champ.d.points[r.id]} оч. · ${cs.indexOf(r.id) + 1}-й в чемпионате`; }
       $('#c-hp').textContent = Math.round(r.hp);
       $('#c-hpbar').style.width = r.hp + '%';
       $('#c-hpbar').classList.toggle('low', r.hp < 35);
@@ -644,7 +692,8 @@
         row.innerHTML = `<div class="s-place"></div><div class="s-ava">${Art.helmet(r, 34)}</div>
           <div class="s-main"><div class="s-name">${r.name} ${Art.weaponIcon(r.weapon, 16)}</div>
           <div class="s-bars"><i class="s-hp"></i><i class="s-ch"></i></div></div>
-          <div class="s-side"><span class="s-lap"></span><span class="s-st"></span></div>`;
+          <div class="s-side"><span class="s-pts"></span><span><span class="s-st"></span> <span class="s-lap"></span></span></div>`;
+        if (r.human) row.classList.add('human');
         row.addEventListener('click', () => selectRacer(r.id));
         list.appendChild(row);
         Stand.rows[r.id] = row;
@@ -661,6 +710,7 @@
         row.querySelector('.s-hp').style.width = r.hp + '%';
         row.querySelector('.s-ch').style.width = (r.charge / r.weapon.charge * 100) + '%';
         row.querySelector('.s-lap').textContent = r.finished ? (r.dnf ? 'DNF' : '🏁') : `К${race.lapOf(r)}`;
+        row.querySelector('.s-pts').textContent = Champ.d && Champ.d.points ? Champ.d.points[r.id] + ' оч.' : '';
         row.querySelector('.s-st').textContent = r.skip ? '🔧' : r.burn ? '🔥' : r.nitro >= CFG.nitroMax ? '⚡' : '';
         row.classList.toggle('selected', r.id === state.selected);
         row.classList.toggle('acting', r.id === state.acting);
@@ -692,15 +742,16 @@
       for (let k = 1; k <= n; k++) { const idx = (race.turn + k - 1) % n; if (race.order[idx] === r.id) { wait = k - 1; break; } const o = race.racers[race.order[idx]]; if (o.finished) continue; }
     }
     const locks = race.racers[state.selected].board.grid.filter(g => g && g.lock).length;
-    $('#boardHead').innerHTML = `<div class="bh-ava">${Art.helmet(r, 30)}</div><div class="bh-t"><b>Поле: ${r.name}</b>
-      <small>${r.finished ? 'гонка окончена' : r.skip ? 'мотоцикл в ремонте' : acting ? 'делает ход…' : wait === 0 ? 'следующий ход' : 'ход через ' + wait}${locks ? ` · ❄ заморожено: ${locks}` : ''}</small></div>
-      <div class="bh-turn ${acting ? 'on' : ''}">${acting ? 'ХОД' : ''}</div>`;
+    $('#boardHead').innerHTML = `<div class="bh-ava">${Art.helmet(r, 30)}</div><div class="bh-t"><b>Поле: ${r.name}${r.human ? ' (вы)' : ''}</b>
+      <small>${r.finished ? 'гонка окончена' : r.skip ? 'мотоцикл в ремонте' : acting && r.human && Input.resolve ? 'поменяйте местами два соседних блока' : acting ? 'делает ход…' : wait === 0 ? 'следующий ход' : 'ход через ' + wait}${locks ? ` · ❄ заморожено: ${locks}` : ''}</small></div>
+      <div class="bh-turn ${acting ? 'on' : ''} ${r.human ? 'you' : ''}">${acting ? (r.human && Input.resolve ? 'ВАШ ХОД' : 'ХОД') : ''}</div>`;
     $('#boardPanel').classList.toggle('active-turn', acting);
   }
 
   function header() {
     const race = state.race;
     $('#roundNo').textContent = race.round;
+    if (Champ.d && Champ.d.stage < window.TRACKS.length) $('#stageName').innerHTML = `${Champ.d.stage + 1}/${window.TRACKS.length} · ${Champ.def().name}${state.rain ? (Champ.def().wet === 'fog' ? ' 🌫' : ' 🌧') : ''}`;
     const cur = race.racers[state.acting] || race.current;
     $('#turnName').innerHTML = cur ? nm(cur) : '—';
     const lead = race.standings()[0];
@@ -831,7 +882,15 @@
     if (mv.cellFx) {
       const k = mv.cellFx.kind;
       trackFx.ring(p1.x, p1.y, Art.CELL_COLOR[k], 30, { life: 0.5 });
-      trackFx.text(p1.x, p1.y + 24, CELL_FX[k].text, Art.CELL_COLOR[k], { size: 12, life: 1.1, rise: 20 });
+      const hz = k === 'hazard' && race.track.def.hazardName;
+      trackFx.text(p1.x, p1.y + 24, hz ? `${hz}! −${mv.cellFx.dmg}` : k === 'hazard' ? `Обломки! −${mv.cellFx.dmg}` : CELL_FX[k].text, Art.CELL_COLOR[k], { size: 12, life: 1.1, rise: 20 });
+      if (k === 'jump') {
+        trackFx.text(p1.x, p1.y - 30, 'ПРЫЖОК!', '#ffd23f', { size: 18 });
+        trackFx.smoke(p1.x, p1.y, 8, { size: 9 });
+        const jh = TV.hop(r.id, mv.cellFx.from, mv.cellFx.to, 520 / Math.min(state.speed, 4), true);
+        if (obs()) await jh;
+        const p2 = TV.xy(r.id); trackFx.burst(p2.x, p2.y, '#ffd23f', 14, { speed: 180, life: 0.5, g: 200 }); trackFx.smoke(p2.x, p2.y, 6, { size: 8 });
+      }
       if (mv.cellFx.crashed) FXS.crash(r.id);
     }
     if (mv.finished) {
@@ -850,36 +909,231 @@
     if (sel !== r) Card.update(sel);
   }
 
+  // =====================================================================
+  //                         ЧЕМПИОНАТ (12 ЭТАПОВ)
+  // =====================================================================
+  const SAVE_KEY = 'yarost-trassy-champ-v1';
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const Champ = {
+    d: null,
+    rollRoster() {
+      const ws = [];
+      while (ws.length < 16) ws.push(...shuffle(WEAPONS.map(w => w.id)));
+      return window.RACERS.map((_, i) => ({ stats: window.rollStats(Math.random), weapon: ws[i] }));
+    },
+    create(roster, human) {
+      const z = () => Array(16).fill(0);
+      Champ.d = { v: 1, roster, human, stage: 0, points: z(), wins: z(), podiums: z(), best: Array(16).fill(99), history: [], weather: null };
+      Champ.save();
+    },
+    get done() { return Champ.d && Champ.d.stage >= window.TRACKS.length; },
+    def() { return window.TRACKS[Champ.d.stage]; },
+    standings() {
+      const d = Champ.d;
+      return window.RACERS.map((_, i) => i).sort((a, b) => d.points[b] - d.points[a] || d.wins[b] - d.wins[a] || d.podiums[b] - d.podiums[a] || d.best[a] - d.best[b] || a - b);
+    },
+    // первый этап — жеребьёвка, дальше лидер чемпионата стартует последним
+    grid() { return Champ.d.stage === 0 ? shuffle(window.RACERS.map((_, i) => i)) : Champ.standings().reverse(); },
+    weather() {
+      const d = Champ.d, def = Champ.def();
+      if (!d.weather || d.weather.stage !== d.stage) d.weather = { stage: d.stage, rain: Math.random() < (def.rain || 0) };
+      return d.weather.rain;
+    },
+    award(race) {
+      const d = Champ.d, row = {};
+      race.racers.forEach(r => {
+        const pts = window.POINTS_TABLE[r.place - 1] || 0;
+        d.points[r.id] += pts;
+        if (r.place === 1) d.wins[r.id]++;
+        if (r.place <= 3) d.podiums[r.id]++;
+        d.best[r.id] = Math.min(d.best[r.id], r.place);
+        row[r.id] = { place: r.place, pts };
+      });
+      d.history.push({ track: Champ.def().id, rain: d.weather && d.weather.rain, row });
+      d.stage++;
+      Champ.save();
+      return row;
+    },
+    save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(Champ.d)); } catch (e) { /* хранилище недоступно */ } },
+    load() { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); return s && s.v === 1 ? s : null; } catch (e) { return null; } },
+    clear() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* */ } }
+  };
+  const RN = id => window.RACERS[id];
+  const nmId = id => `<b style="color:${RN(id).color}">${RN(id).name}</b>`;
+  const helmetId = (id, size) => Art.helmet({ id, num: id + 1, color: RN(id).color }, size);
+
+  // =====================================================================
+  //                       ХОД ИГРОКА (ввод на поле)
+  // =====================================================================
+  const Input = {
+    resolve: null, sel: -1, start: null, hintT: 0,
+    get active() { return !!this.resolve && state.race && state.selected === state.race.current.id; },
+    wait(race) {
+      const r = race.current;
+      const p = new Promise(res => { Input.resolve = res; });
+      if (state.selected !== r.id) selectRacer(r.id);
+      state.acting = r.id;
+      header(); Stand.update(); TV.updateClasses(); boardHead(); Card.update(r);
+      document.body.classList.add('your-turn');
+      BV.toast('ВАШ ХОД!', { x: BV.cellPx() * 4, y: BV.cellPx() * 4 }, '#2fdc74');
+      Input.advise(race, r);
+      Input.armHint();
+      return p;
+    },
+    finish(move) {
+      const f = Input.resolve; if (!f) return;
+      Input.resolve = null; Input.clearSel(); Input.clearHint();
+      document.body.classList.remove('your-turn');
+      f(move);
+    },
+    advise(race, r) {
+      const W = window.RaceAI.weights(race, r);
+      const top = W.map((w, i) => [w, i]).sort((a, b) => b[0] - a[0]).slice(0, 2).map(x => x[1]);
+      $('#gains').innerHTML = `<span class="g-l">🔧 Механик: сейчас важнее всего —</span>` + top.map(i => `<span class="gchip" style="--c:${GEMS[i].color}">${GEMS[i].name}</span>`).join('');
+    },
+    gemAt(i) { const g = state.race.current.board.grid[i]; return g && BV.els.get(g.id); },
+    cellAt(ev) {
+      const b = $('#board').getBoundingClientRect(), s = b.width / BV.n;
+      const c = Math.floor((ev.clientX - b.left) / s), r = Math.floor((ev.clientY - b.top) / s);
+      return c < 0 || r < 0 || c >= BV.n || r >= BV.n ? -1 : r * BV.n + c;
+    },
+    down(ev) {
+      if (!Input.active) return;
+      const i = Input.cellAt(ev); if (i < 0) return;
+      Input.start = { i, x: ev.clientX, y: ev.clientY };
+      ev.preventDefault();
+    },
+    move(ev) {
+      const st = Input.start; if (!st || !Input.active) return;
+      const dx = ev.clientX - st.x, dy = ev.clientY - st.y, s = BV.cellPx();
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < s * 0.4) return;
+      const r = (st.i / BV.n) | 0, c = st.i % BV.n;
+      const [rr, cc] = Math.abs(dx) > Math.abs(dy) ? [r, c + Math.sign(dx)] : [r + Math.sign(dy), c];
+      Input.start = null;
+      if (rr < 0 || cc < 0 || rr >= BV.n || cc >= BV.n) return;
+      Input.attempt(st.i, rr * BV.n + cc);
+    },
+    up(ev) {
+      const st = Input.start; Input.start = null;
+      if (!st || !Input.active) return;
+      const i = Input.cellAt(ev); if (i < 0) return;
+      const board = state.race.current.board;
+      if (Input.sel >= 0 && Input.sel !== i && board.adjacent(Input.sel, i)) Input.attempt(Input.sel, i);
+      else if (Input.sel === i) Input.clearSel();
+      else { Input.clearSel(); Input.sel = i; const e = Input.gemAt(i); if (e) e.classList.add('picked'); }
+    },
+    clearSel() { if (Input.sel >= 0) { const e = Input.gemAt(Input.sel); if (e) e.classList.remove('picked'); } Input.sel = -1; },
+    async attempt(a, b) {
+      Input.clearSel(); Input.armHint();
+      const board = state.race.current.board;
+      if (board.swapValid(a, b)) { Input.finish([a, b]); return; }
+      // неверный ход: качнуть блоки туда-обратно
+      const ea = Input.gemAt(a), eb = Input.gemAt(b);
+      if (!ea || !eb) return;
+      const g = board.grid;
+      if ((g[a] && g[a].lock) || (g[b] && g[b].lock)) BV.toast('ЗАМОРОЖЕНО', BV.center(a), '#9eeaff');
+      BV.place(ea, b); BV.place(eb, a);
+      await new Promise(r => setTimeout(r, 200));
+      BV.place(ea, a); BV.place(eb, b);
+      [ea, eb].forEach(e => { e.classList.remove('nope'); void e.offsetWidth; e.classList.add('nope'); });
+    },
+    armHint() {
+      Input.clearHint();
+      Input.hintT = setTimeout(() => Input.hint(), 9000);
+    },
+    hint() {
+      if (!Input.active) return;
+      const r = state.race.current, mv = window.RaceAI.choose(state.race, r);
+      mv.forEach(i => { const e = Input.gemAt(i); if (e) e.classList.add('hint'); });
+    },
+    clearHint() { clearTimeout(Input.hintT); document.querySelectorAll('.gem.hint').forEach(e => e.classList.remove('hint')); }
+  };
+
+  // =====================================================================
+  //                             ИГРОВОЙ ЦИКЛ
+  // =====================================================================
+  function syncAll() {
+    const race = state.race;
+    race.racers.forEach(r => { const t = TV.tokens[r.id]; if (t.hop) { const f = t.hop.resolve; t.hop = null; f(); } t.pos = r.pos; });
+    TV.relayout(true);
+    state.acting = -1;
+    selectRacer(state.selected);
+    header();
+  }
+
   async function runRace() {
     const rid = state.raceId, race = state.race;
     while (!race.over && rid === state.raceId) {
       await untilUnpaused();
       if (rid !== state.raceId) return;
-      const res = race.playTurn();
+      if (state.skip) { while (!race.over) race.playTurn(); syncAll(); break; }
+      let move;
+      if (race.needsInput() && !state.autopilot) {
+        move = await Input.wait(race);
+        if (rid !== state.raceId) return;
+        if (state.skip) continue;
+      }
+      const res = race.playTurn(move || undefined);
       if (!res) break;
       await present(res, rid);
       if (rid !== state.raceId) return;
       state.acting = -1;
       Stand.update(); TV.updateClasses(); header(); boardHead();
     }
-    if (rid === state.raceId) setTimeout(showResults, 900);
+    if (rid === state.raceId) { state.skip = false; setTimeout(() => { if (rid === state.raceId) finishRace(); }, 1100); }
   }
 
-  function newRace(start) {
-    state.raceId++;
-    state.epoch++;
-    state.acting = -1;
-    state.track = state.track || window.buildTrack();
-    state.race = new window.Race({ track: state.track });
-    state.selected = 0;
+  function setupRace() {
+    state.raceId++; state.epoch++; state.acting = -1; state.skip = false;
+    Input.finish(null); document.body.classList.remove('your-turn');
+    const d = Champ.d, def = Champ.def();
+    state.track = window.buildTrack(def);
+    state.rain = Champ.weather();
+    state.race = new window.Race({ track: state.track, roster: d.roster, human: d.human, grid: Champ.grid(), mods: { rain: state.rain } });
     TV.build(state.track, state.race.racers);
     Stand.build(state.race);
     $('#log').innerHTML = '';
-    selectRacer(0);
+    selectRacer(d.human >= 0 ? d.human : state.race.order[0]);
     header();
-    $('#results').classList.remove('show');
-    if (start) countdown().then(() => { log('Гонка началась! Дистанция — ' + state.track.laps + ' круга', 'good'); runRace(); });
+    gemLegend();
+    rules();
+    document.body.classList.toggle('player-mode', d.human >= 0);
+    trackFx.pre = state.rain ? (def.wet === 'fog' ? Weather.fog : Weather.rain) : null;
   }
+
+  async function startStage() {
+    $('#trackIntro').classList.remove('show');
+    await countdown();
+    log(`Этап ${Champ.d.stage + 1}: ${Champ.def().name}. Дистанция — ${state.track.laps} ${state.track.laps === 1 ? 'круг' : state.track.laps < 5 ? 'круга' : 'кругов'}${state.rain ? ' · ' + (Champ.def().wet === 'fog' ? 'туман' : 'дождь') : ''}`, 'good');
+    runRace();
+  }
+
+  // ---------- погода ----------
+  const Weather = {
+    drops: [],
+    rain(ctx, dt, fx) {
+      const W = fx.w, H = fx.h, D = Weather.drops;
+      while (D.length < 140) D.push({ x: Math.random() * W, y: Math.random() * H, v: 500 + Math.random() * 400, l: 8 + Math.random() * 14 });
+      ctx.strokeStyle = 'rgba(170,200,255,.35)'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      D.forEach(d => {
+        d.y += d.v * dt; d.x -= d.v * dt * 0.18;
+        if (d.y > H) { d.y = -20; d.x = Math.random() * (W + 100); }
+        ctx.moveTo(d.x, d.y); ctx.lineTo(d.x + d.l * 0.18, d.y - d.l);
+      });
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(40,60,90,.12)'; ctx.fillRect(0, 0, W, H);
+    },
+    fog(ctx, dt, fx) {
+      const t = performance.now() / 1000, W = fx.w, H = fx.h;
+      for (let i = 0; i < 6; i++) {
+        const x = ((i * 0.23 + t * 0.012 * (1 + i % 3)) % 1.4 - 0.2) * W, y = (0.15 + (i * 0.17) % 0.8) * H, r = W * 0.25;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, 'rgba(200,210,220,.16)'); g.addColorStop(1, 'rgba(200,210,220,0)');
+        ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+    }
+  };
 
   async function countdown() {
     const cd = $('#countdown');
@@ -892,17 +1146,167 @@
     state.race.racers.forEach(r => { const p = TV.xy(r.id); trackFx.smoke(p.x, p.y, 4, { size: 8, vx: -30 }); });
   }
 
-  function showResults() {
-    const race = state.race;
+  // =====================================================================
+  //                                ЭКРАНЫ
+  // =====================================================================
+  function flagSvg(id, w) {
+    const h = Math.round(w * 2 / 3);
+    const F = {
+      monaco: '<rect width="30" height="10" fill="#ce1126"/><rect y="10" width="30" height="10" fill="#fff"/>',
+      monza: '<rect width="10" height="20" fill="#009246"/><rect x="10" width="10" height="20" fill="#fff"/><rect x="20" width="10" height="20" fill="#ce2b37"/>',
+      mugello: '<rect width="10" height="20" fill="#009246"/><rect x="10" width="10" height="20" fill="#fff"/><rect x="20" width="10" height="20" fill="#ce2b37"/>',
+      spa: '<rect width="10" height="20" fill="#000"/><rect x="10" width="10" height="20" fill="#fdda24"/><rect x="20" width="10" height="20" fill="#ef3340"/>',
+      suzuka: '<rect width="30" height="20" fill="#fff"/><circle cx="15" cy="10" r="6" fill="#bc002d"/>',
+      nordschleife: '<rect width="30" height="7" fill="#000"/><rect y="6.6" width="30" height="7" fill="#dd0000"/><rect y="13.3" width="30" height="6.7" fill="#ffce00"/>',
+      silverstone: '<rect width="30" height="20" fill="#012169"/><path d="M0 0 30 20M30 0 0 20" stroke="#fff" stroke-width="4"/><path d="M0 0 30 20M30 0 0 20" stroke="#c8102e" stroke-width="1.6"/><path d="M15 0v20M0 10h30" stroke="#fff" stroke-width="6"/><path d="M15 0v20M0 10h30" stroke="#c8102e" stroke-width="3.4"/>',
+      interlagos: '<rect width="30" height="20" fill="#009c3b"/><path d="M15 2 28 10 15 18 2 10z" fill="#ffdf00"/><circle cx="15" cy="10" r="4.6" fill="#002776"/>',
+      iom: '<rect width="30" height="20" fill="#cf142b"/><g transform="translate(15 10)" stroke="#fff" stroke-width="1.6" fill="none"><path d="M0 0 0-6 2-7M0 0 5.2 3 6 5M0 0-5.2 3-7 2.4"/></g>',
+      laguna: '<rect width="30" height="20" fill="#fff"/>' + [0, 2, 4, 6, 8, 10, 12].map(i => `<rect y="${i * 20 / 13}" width="30" height="${20 / 13}" fill="#b22234"/>`).join('') + '<rect width="13" height="10.8" fill="#3c3b6e"/>',
+      phillip: '<rect width="30" height="20" fill="#012169"/><g transform="scale(.5)"><path d="M0 0 30 20M30 0 0 20" stroke="#fff" stroke-width="4"/><path d="M15 0v20M0 10h30" stroke="#fff" stroke-width="6"/><path d="M15 0v20M0 10h30" stroke="#c8102e" stroke-width="3.4"/></g><g fill="#fff"><circle cx="8" cy="15.5" r="1.6"/><circle cx="23" cy="5" r="1"/><circle cx="20" cy="10" r="1"/><circle cx="26" cy="9" r="1"/><circle cx="23" cy="16" r="1.2"/></g>',
+      assen: '<rect width="30" height="7" fill="#ae1c28"/><rect y="6.6" width="30" height="7" fill="#fff"/><rect y="13.3" width="30" height="6.7" fill="#21468b"/>'
+    };
+    return `<svg class="flag" viewBox="0 0 30 20" width="${w}" height="${h}">${F[id] || ''}</svg>`;
+  }
+
+  function racerPill(id, ros) {
+    const w = WEAPONS.find(x => x.id === ros.weapon);
+    return `<div class="pick" data-id="${id}" style="--rc:${RN(id).color}">${helmetId(id, 46)}<div class="pk-main"><b>${RN(id).name}</b>
+      <div class="pk-stats"><span class="c-acc">Р ${ros.stats.accel}</span><span class="c-top">С ${ros.stats.top}</span><span class="c-han">М ${ros.stats.handling}</span></div>
+      <div class="pk-w">${Art.weaponIcon(w, 16)} ${w.name}</div></div></div>`;
+  }
+
+  const Menu = {
+    show() {
+      state.menuRoster = state.menuRoster || Champ.rollRoster();
+      const saved = Champ.load();
+      $('#introBody').innerHTML = `
+        <p class="intro-text">16 гонщиков, 12 легендарных трасс мира и чемпионат на очки. Каждый гонщик — ИИ, который по очереди делает ход на своём поле «три в ряд»: собранные блоки превращаются в скорость, нитро, патроны, броню, ремонт и сцепление.</p>
+        <div class="modes">
+          ${saved && saved.stage < window.TRACKS.length ? `<button class="mode cont" id="mContinue"><span class="m-ic">⏵</span><b>Продолжить чемпионат</b><small>Этап ${saved.stage + 1} из 12 · ${saved.human >= 0 ? 'вы — ' + RN(saved.human).name : 'режим зрителя'}</small></button>` : ''}
+          <button class="mode" id="mWatch"><span class="m-ic">👁</span><b>Режим зрителя</b><small>Смотреть, как 16 ИИ бьются за титул. Переключайтесь между полями любых гонщиков.</small></button>
+          <button class="mode hot" id="mPlay"><span class="m-ic">🎮</span><b>Играть за гонщика</b><small>Выберите пилота и сами делайте ходы на его поле. Остальные 15 — ИИ.</small></button>
+        </div>
+        <div class="points-row">Очки за этап: ${window.POINTS_TABLE.map((p, i) => `<span><em>${i + 1}</em>${p}</span>`).join('')}</div>`;
+      $('#intro').classList.add('show');
+      $('#mWatch').onclick = () => Menu.begin(-1);
+      $('#mPlay').onclick = () => Menu.picker();
+      const mc = $('#mContinue');
+      if (mc) mc.onclick = () => { Champ.d = saved; $('#intro').classList.remove('show'); TrackIntro.show(); };
+    },
+    picker() {
+      const roster = state.menuRoster;
+      $('#introBody').innerHTML = `<p class="intro-text">Выберите своего гонщика. Характеристики: <span class="c-acc">Р</span> — разгон, <span class="c-top">С</span> — макс. скорость, <span class="c-han">М</span> — маневренность (сумма у всех одинаковая). Оружие у каждого своё.</p>
+        <div class="picker">${roster.map((ros, i) => racerPill(i, ros)).join('')}</div>
+        <div class="intro-btns"><button class="btn" id="mBack">← Назад</button><button class="btn" id="mReroll">🎲 Новый состав</button></div>`;
+      document.querySelectorAll('.picker .pick').forEach(p => { p.onclick = () => Menu.begin(+p.dataset.id); });
+      $('#mBack').onclick = () => Menu.show();
+      $('#mReroll').onclick = () => { state.menuRoster = Champ.rollRoster(); Menu.picker(); };
+    },
+    begin(human) {
+      Champ.create(state.menuRoster, human);
+      state.menuRoster = null;
+      $('#intro').classList.remove('show');
+      TrackIntro.show();
+    }
+  };
+
+  const TrackIntro = {
+    show() {
+      setupRace();
+      const def = Champ.def(), d = Champ.d, tr = state.track;
+      const wet = state.rain ? (def.wet === 'fog' ? ['🌫', 'Туман'] : ['🌧', 'Дождь: предел в поворотах −0,8, точность −10%']) : ['☀', 'Сухая трасса'];
+      const grid = state.race.order;
+      const me = d.human >= 0 ? grid.indexOf(d.human) + 1 : 0;
+      const leader = d.stage ? Champ.standings()[0] : -1;
+      const el = $('#trackIntro');
+      el.style.setProperty('--tc', def.theme.ground);
+      el.innerHTML = `<div class="ti-bg"></div><div class="ti-lines">${Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div>
+        <div class="ti-inner">
+          <div class="ti-map"><svg viewBox="0 20 1020 700">
+            <path d="${tr.path}" class="ti-glow"/><path d="${tr.path}" class="ti-road" pathLength="1000"/>
+            ${tr.labels.map((l, i) => { const c = tr.cells[l.cell]; return `<g class="ti-lbl" style="--d:${1.2 + i * 0.12}s" transform="translate(${c.x.toFixed(0)} ${c.y.toFixed(0)})"><circle r="7"/><text y="-14">${l.text}</text></g>`; }).join('')}
+            <circle r="10" class="ti-comet"><animateMotion dur="5s" repeatCount="indefinite" path="${tr.path}"/></circle>
+          </svg></div>
+          <div class="ti-info">
+            <div class="ti-stage">ЭТАП ${d.stage + 1} <span>/ ${window.TRACKS.length}</span></div>
+            <div class="ti-country">${flagSvg(def.id, 42)}<span>${def.country}</span></div>
+            <h1 class="ti-name">${(() => { let i = 0; return def.name.split(' ').map(w => `<span class="w">${w.split('').map(ch => `<span style="--i:${i++}">${ch}</span>`).join('')}</span>`).join(' '); })()}</h1>
+            <div class="ti-full">${def.full}</div>
+            <div class="ti-facts">${def.facts.map(f => `<span>${f}</span>`).join('')}<span>${tr.N} клеток × ${tr.laps} ${tr.laps < 5 ? 'круга' : 'кругов'}</span></div>
+            <p class="ti-desc">${def.desc}</p>
+            <div class="ti-feats">${def.features.map(([ic, t]) => `<div><i>${ic}</i>${t}</div>`).join('')}<div class="wx ${state.rain ? 'wet' : ''}"><i>${wet[0]}</i>${wet[1]}</div></div>
+            <div class="ti-grid">${me ? `Ваша позиция на старте: <b>${me}</b> из 16` : `Поул-позиция: ${nmId(grid[0])}`}${leader >= 0 ? ` · лидер чемпионата ${nmId(leader)} стартует последним` : ' · стартовая решётка по жребию'}</div>
+            <div class="ti-btns"><button class="btn big primary" id="tiGo">НА СТАРТ!</button>${d.stage ? '<button class="btn big" id="tiTable">🏆 Таблица</button>' : ''}</div>
+          </div>
+        </div>`;
+      el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+      $('#tiGo').onclick = () => startStage();
+      const tb = $('#tiTable'); if (tb) tb.onclick = () => Table.open();
+    }
+  };
+
+  function champTableHtml(highlight) {
+    const d = Champ.d, st = Champ.standings(), max = Math.max(1, d.points[st[0]]);
+    return `<div class="ctable">${st.map((id, i) => `<div class="crow ${id === d.human ? 'me' : ''}" style="--rc:${RN(id).color};--w:${d.points[id] / max * 100}%;--i:${i}">
+      <span class="cr-p">${i + 1}</span>${helmetId(id, 26)}<span class="cr-n">${RN(id).name}${id === d.human ? ' <small>ВЫ</small>' : ''}</span>
+      <span class="cr-bar"><i></i></span><span class="cr-w">${d.wins[id] ? '🏆' + d.wins[id] : ''}</span>
+      <b class="cr-pts">${d.points[id]}</b>${highlight && highlight[id] && highlight[id].pts ? `<em>+${highlight[id].pts}</em>` : '<em></em>'}</div>`).join('')}</div>`;
+  }
+
+  const Table = {
+    open() {
+      $('#tableBody').innerHTML = `<div class="tb-sub">После ${Champ.d.stage} из ${window.TRACKS.length} этапов</div>` + champTableHtml() + Table.history();
+      $('#tableModal').classList.add('show');
+    },
+    history() {
+      const d = Champ.d;
+      if (!d.history.length) return '';
+      return `<h3>Этапы</h3><div class="hist">${d.history.map((h, i) => {
+        const def = window.TRACKS.find(t => t.id === h.track);
+        const win = +Object.keys(h.row).find(id => h.row[id].place === 1);
+        const me = d.human >= 0 ? h.row[d.human].place : 0;
+        return `<div class="hrow">${flagSvg(def.id, 24)}<span>${i + 1}. ${def.name}${h.rain ? ' 🌧' : ''}</span><span>🏆 ${nmId(win)}</span>${me ? `<span class="my">вы: ${me}-й</span>` : ''}</div>`;
+      }).join('')}</div>`;
+    }
+  };
+
+  function finishRace() {
+    const race = state.race, def = Champ.def();
+    const row = Champ.award(race);
     const st = race.racers.slice().sort((a, b) => a.place - b.place);
+    $('#resTitle').innerHTML = `${flagSvg(def.id, 34)} Этап ${Champ.d.stage}: ${def.name}`;
     $('#podium').innerHTML = [st[1], st[0], st[2]].map((r, i) => `<div class="pod p${[2, 1, 3][i]}" style="--rc:${r.color}">
-      <div class="pod-ava">${Art.helmet(r, i === 1 ? 90 : 70)}</div><b>${r.name}</b><div class="pod-col">${[2, 1, 3][i]}</div></div>`).join('');
-    $('#resultsTable').innerHTML = `<table><thead><tr><th>#</th><th>Гонщик</th><th>Р/С/М</th><th>Оружие</th><th>Попадания</th><th>Урон</th><th>Аварии</th><th>Финиш</th></tr></thead><tbody>` +
-      st.map(r => `<tr><td>${r.place}</td><td>${nm(r)}</td><td>${r.stats.accel}/${r.stats.top}/${r.stats.handling}</td><td>${Art.weaponIcon(r.weapon, 16)} ${r.weapon.name.split(' ')[0]}</td><td>${r.hits}/${r.shots}</td><td>${Math.round(r.dmgDealt)}</td><td>${r.crashes}</td><td>${r.dnf ? 'не успел' : 'раунд ' + r.finishRound}</td></tr>`).join('') +
-      '</tbody></table>';
+      <div class="pod-ava">${Art.helmet(r, i === 1 ? 90 : 70)}</div><b>${r.name}</b><small>+${row[r.id].pts} очк.</small><div class="pod-col">${[2, 1, 3][i]}</div></div>`).join('');
+    $('#resultsTable').innerHTML = `<div class="res-cols"><div><h3>Итоги гонки</h3><table><thead><tr><th>#</th><th>Гонщик</th><th>Очки</th><th>Попад.</th><th>Урон</th><th>Аварии</th></tr></thead><tbody>` +
+      st.map(r => `<tr class="${r.human ? 'me' : ''}"><td>${r.place}</td><td>${nm(r)}${r.dnf ? ' <small class="dnf">не финишировал</small>' : ''}</td><td class="pts">${row[r.id].pts ? '+' + row[r.id].pts : '—'}</td><td>${r.hits}/${r.shots}</td><td>${Math.round(r.dmgDealt)}</td><td>${r.crashes}</td></tr>`).join('') +
+      `</tbody></table></div><div><h3>Чемпионат</h3>${champTableHtml(row)}</div></div>`;
+    const last = Champ.done;
+    $('#btnNext').textContent = last ? '🏆 Итоги чемпионата' : `Следующий этап → ${window.TRACKS[Champ.d.stage].name}`;
+    $('#btnNext').onclick = () => { $('#results').classList.remove('show'); if (last) Final.show(); else TrackIntro.show(); };
     $('#results').classList.add('show');
     FXS.confetti(st[0].id);
   }
+
+  const Final = {
+    show() {
+      const d = Champ.d, st = Champ.standings(), ch = st[0];
+      const me = d.human >= 0 ? st.indexOf(d.human) + 1 : 0;
+      $('#finalBody').innerHTML = `
+        <div class="trophy"><svg viewBox="0 0 120 140" width="130"><defs><linearGradient id="gold" x1="0" x2="1"><stop offset="0" stop-color="#b8860b"/><stop offset=".5" stop-color="#ffe680"/><stop offset="1" stop-color="#b8860b"/></linearGradient></defs>
+          <path d="M30 10h60v30c0 22-14 38-30 40-16-2-30-18-30-40z" fill="url(#gold)"/><path d="M30 18H12c0 18 8 28 20 30M90 18h18c0 18-8 28-20 30" stroke="url(#gold)" stroke-width="6" fill="none"/>
+          <rect x="54" y="80" width="12" height="22" fill="url(#gold)"/><rect x="34" y="102" width="52" height="12" rx="3" fill="url(#gold)"/><rect x="26" y="114" width="68" height="18" rx="3" fill="#3a2a10"/></svg>
+          <div class="champ-ava">${helmetId(ch, 96)}</div></div>
+        <div class="champ-name" style="--rc:${RN(ch).color}">${RN(ch).name}</div>
+        <div class="champ-sub">Чемпион «Ярости трассы» · ${d.points[ch]} очков · побед: ${d.wins[ch]}</div>
+        ${me ? `<div class="champ-me">Ваш итог: <b>${me}-е место</b>, ${d.points[d.human]} очков</div>` : ''}
+        ${champTableHtml()}
+        ${Table.history()}`;
+      $('#final').classList.add('show');
+      Champ.clear();
+      const burst = () => { const r = state.race.racers[ch]; if (r) FXS.confetti(ch); };
+      burst(); setTimeout(burst, 700); setTimeout(burst, 1400);
+    }
+  };
 
   // ---------- правила ----------
   function rules() {
@@ -911,39 +1315,39 @@
     const cells = Object.entries(CELL_FX).map(([k, c]) => `<div class="rc"><svg viewBox="-12 -12 24 24" width="26" height="26"><circle r="11" fill="${Art.CELL_COLOR[k]}"/>${Art.CELL_ICON[k]}</svg><b>${c.name}</b> ${c.text}</div>`).join('');
     const weap = `<table class="wt"><thead><tr><th></th><th>Оружие</th><th>Урон</th><th>Дальн.</th><th>Сектор</th><th>Заряд</th><th>Точн.</th><th>Эффект</th></tr></thead><tbody>` +
       WEAPONS.map(w => `<tr><td>${Art.weaponIcon(w, 22)}</td><td>${w.name}</td><td>${Math.round(w.dmg * CFG.dmgMul)}</td><td>${w.range}</td><td>${DIR[w.dir]}</td><td>${w.charge}</td><td>${Math.round(w.acc * 100)}%</td><td>${w.desc}</td></tr>`).join('') + '</tbody></table>';
+    const tr = state.track;
     $('#rulesBody').innerHTML = `
-      <section><h3>Очерёдность</h3><p>16 гонщиков-ИИ ходят строго по очереди (№1 → №16, затем новый раунд). За ход гонщик: <b>1)</b> делает один обмен на своём поле «три в ряд»; <b>2)</b> получает бонусы от сгоревших блоков (каскады дают множитель ×1,5, ×2…); <b>3)</b> стреляет, если оружие заряжено и цель в секторе; <b>4)</b> передвигает фишку по трассе на число клеток, равное скорости.</p></section>
+      <section><h3>Чемпионат</h3><p>12 этапов на легендарных трассах мира. За место в гонке начисляются очки:</p>
+        <div class="points-row">${window.POINTS_TABLE.map((p, i) => `<span><em>${i + 1}</em>${p}</span>`).join('')}<span><em>13–16</em>0</span></div>
+        <p>На первом этапе стартовая решётка — по жребию, дальше в обратном порядке таблицы: лидер стартует последним. При равенстве очков выше тот, у кого больше побед, затем подиумов. Прогресс сохраняется в браузере.</p></section>
+      <section><h3>Очерёдность</h3><p>Гонщики ходят строго по очереди, в порядке стартовой решётки. За ход гонщик: <b>1)</b> делает один обмен на своём поле «три в ряд»; <b>2)</b> получает бонусы от сгоревших блоков (каскады дают множитель ×1,5, ×2…); <b>3)</b> стреляет, если оружие заряжено и цель в секторе; <b>4)</b> передвигает фишку по трассе на число клеток, равное скорости. Если вы играете за гонщика, в свой ход поменяйте местами два соседних блока (перетаскиванием или двумя щелчками). Стрельба, нитро и торможение — автоматические.</p></section>
       <section><h3>Характеристики (1–20, у всех одинаковая сумма — ${CFG.STAT_TOTAL})</h3>
         <ul>
-          <li><b class="c-acc">Разгон</b> — прирост скорости за ход: ${CFG.accBase} + ${CFG.accPer}×Разгон, и каждый блок «Топлива» усиливает его на ${Math.round(CFG.fuelPer * 100)}%. Сопротивление воздуха съедает ${Math.round(CFG.drag * 100)}% скорости каждый ход — без хорошего разгона не удержать темп, не восстановиться после поворота, удара или аварии.</li>
+          <li><b class="c-acc">Разгон</b> — прирост скорости за ход: ${CFG.accBase} + ${CFG.accPer}×Разгон, и каждый блок «Топлива» усиливает его на ${Math.round(CFG.fuelPer * 100)}%. Сопротивление воздуха съедает ${Math.round(CFG.drag * 100)}% скорости каждый ход.</li>
           <li><b class="c-top">Макс. скорость</b> — потолок на прямых: ${CFG.vmaxBase} + ${CFG.vmaxPer}×Скорость клеток за ход и сила нитро-рывка (${CFG.nitroBase} + ${CFG.nitroPer}×Скорость). Повреждённый мотоцикл теряет до ${Math.round(CFG.hpSpeedFactor * 100)}% потолка.</li>
-          <li><b class="c-han">Маневренность</b> — допустимая скорость в повороте: ${CFG.cornerBase} + ${CFG.cornerPer}×Маневр + ${CFG.gripPer}×Сцепление (на серпантине −${CFG.hairpinPenalty}), и шанс уворота от атак ${CFG.dodgePer * 100}% за единицу.</li>
-          <li><b>Прочность</b> — 100 у всех. На нуле — авария: ${CFG.crashSkip} хода ремонта, скорость 0, затем возврат с ${CFG.crashHp} прочности.</li>
+          <li><b class="c-han">Маневренность</b> — допустимая скорость в повороте: ${CFG.cornerBase} + ${CFG.cornerPer}×Маневр + ${CFG.gripPer}×Сцепление (на серпантине −${CFG.hairpinPenalty}), и шанс уворота ${CFG.dodgePer * 100}% за единицу.</li>
+          <li><b>Прочность</b> — 100 у всех. На нуле — авария: ${CFG.crashSkip} хода ремонта, затем возврат с ${CFG.crashHp} прочности.</li>
         </ul>
-        <p>Перед поворотом гонщик тормозит (не более ${CFG.brakePower} скорости за ход). Не успел сбросить — <b>занос</b>: урон ${CFG.skidDamage} за каждую единицу превышения и потеря скорости. Коэффициенты подобраны симуляцией тысяч гонок так, чтобы вклад каждой характеристики в итоговое место был одинаковым.</p></section>
+        <p>Перед поворотом гонщик тормозит (не более ${CFG.brakePower} скорости за ход), не успел — <b>занос</b> с уроном. Коэффициенты подобраны симуляцией: на дистанции всего чемпионата каждая характеристика одинаково важна, хотя отдельные трассы любят своё — Монца скорость, Монако маневренность.</p></section>
       <section><h3>Шесть блоков</h3><div class="rgrid">${gems}</div></section>
       <section><h3>Спецблоки</h3><div class="rgrid">${sp}</div></section>
-      <section><h3>Трасса</h3><p>Трасса из ${state.track.N} клеток, ${state.track.laps} круга. Жёлтые клетки — повороты, красные — крутой серпантин. Спецклетки срабатывают, если закончить на них ход:</p><div class="rcells">${cells}</div></section>
-      <section><h3>Оружие</h3><p>«Боезапас» заряжает оружие. Полный заряд — выстрел по лучшей цели в секторе (вперёд / назад / вокруг на дальность в клетках). Шанс попадания = точность × (1 − уворот цели). Щит поглощает урон первым.</p>${weap}</section>`;
+      <section><h3>Трасса</h3><p>${tr ? `Сейчас: ${tr.def.name || ''} — ${tr.N} клеток, ${tr.laps} ${tr.laps < 5 ? 'круга' : 'кругов'}. ` : ''}Числа на клетках — номер клетки на круге (подписан каждый 6-й), чтобы было видно, где гонщик. Жёлтые клетки — повороты, красные — крутые. Спецклетки срабатывают, если закончить на них ход:</p><div class="rcells">${cells}</div></section>
+      <section><h3>Оружие</h3><p>«Боезапас» заряжает оружие. Полный заряд — выстрел по лучшей цели в секторе. Шанс попадания = точность × (1 − уворот цели). Щит поглощает урон первым.</p>${weap}</section>`;
   }
 
-  // ---------- легенда блоков ----------
+  // ---------- легенда ----------
   function gemLegend() {
     $('#gemLegend').innerHTML = GEMS.map((g, i) => `<div class="gl" title="${g.desc}"><div class="gem t${i} static mini"><div class="gem-in">${Art.gemIcon(i)}</div></div><span><b style="color:${g.color}">${g.name}</b><small>${g.short}</small></span></div>`).join('');
-    $('#trackLegend').innerHTML = `<span><i class="lg turn"></i>поворот</span><span><i class="lg hair"></i>серпантин</span>` +
-      Object.entries(CELL_FX).map(([k, c]) => `<span><svg viewBox="-12 -12 24 24" width="16" height="16"><circle r="11" fill="${Art.CELL_COLOR[k]}"/>${Art.CELL_ICON[k]}</svg>${c.name}</span>`).join('');
-  }
-
-  function introGrid() {
-    const tmp = new window.Race({ track: state.track });
-    $('#introGrid').innerHTML = tmp.racers.map(r => `<div class="ig" style="--rc:${r.color}">${Art.helmet(r, 44)}<span>${r.name}</span></div>`).join('');
+    const kinds = state.track ? [...new Set(state.track.cells.map(c => c.kind))].filter(k => k !== 'plain') : Object.keys(CELL_FX);
+    const hz = state.track && state.track.def.hazardName;
+    $('#trackLegend').innerHTML = `<span><i class="lg turn"></i>поворот</span><span><i class="lg hair"></i>крутой поворот</span>` +
+      kinds.map(k => `<span><svg viewBox="-12 -12 24 24" width="16" height="16"><circle r="11" fill="${Art.CELL_COLOR[k]}"/>${Art.CELL_ICON[k]}</svg>${k === 'hazard' && hz ? hz : CELL_FX[k].name}</span>`).join('');
   }
 
   // =====================================================================
   //                                 СТАРТ
   // =====================================================================
   function init() {
-    state.track = window.buildTrack();
     const tm = trackMapper();
     trackFx = new window.FX($('#trackFx'));
     trackFx.map = tm.map; trackFx.onResize = tm.upd; tm.upd();
@@ -952,18 +1356,30 @@
     new ResizeObserver(() => { trackFx.resize(); boardFx.resize(); }).observe($('#trackWrap'));
     new ResizeObserver(() => boardFx.resize()).observe($('#board'));
     setSpeed(2);
-    gemLegend();
-    introGrid();
-    newRace(false);
-    rules();
+    // фон за меню — превью первой трассы
+    Champ.d = { roster: Champ.rollRoster(), human: -1, stage: 0, points: Array(16).fill(0), wins: Array(16).fill(0), podiums: Array(16).fill(0), best: Array(16).fill(99), history: [] };
+    setupRace();
+    Champ.d = null;
+    Menu.show();
 
-    $('#btnStart').onclick = () => { $('#intro').classList.remove('show'); newRace(true); };
-    $('#btnAgain').onclick = () => newRace(true);
-    $('#btnRestart').onclick = () => newRace(true);
+    const board = $('#board');
+    board.addEventListener('pointerdown', Input.down);
+    window.addEventListener('pointermove', Input.move);
+    window.addEventListener('pointerup', Input.up);
+
+    $('#btnRestart').onclick = () => { if (confirm('Начать новый чемпионат? Текущий прогресс будет потерян.')) { state.raceId++; Input.finish(null); Champ.clear(); $('#results').classList.remove('show'); $('#trackIntro').classList.remove('show'); Menu.show(); } };
+    $('#btnAgain').onclick = () => { $('#final').classList.remove('show'); Menu.show(); };
+    $('#btnTable').onclick = () => { if (Champ.d) Table.open(); };
+    $('#btnSkip').onclick = () => { if (!state.race || state.race.over || !Champ.d) return; state.skip = true; if (Input.resolve) Input.finish(null); };
+    $('#btnAuto').onclick = () => {
+      state.autopilot = !state.autopilot;
+      $('#btnAuto').classList.toggle('active', state.autopilot);
+      if (state.autopilot && Input.resolve) Input.finish(null);
+    };
     const openRules = () => $('#rules').classList.add('show');
-    $('#btnRules').onclick = openRules; $('#btnRules2').onclick = openRules;
+    $('#btnRules').onclick = openRules;
     document.querySelectorAll('[data-close]').forEach(b => { b.onclick = () => $('#' + b.dataset.close).classList.remove('show'); });
-    $('#rules').addEventListener('click', e => { if (e.target.id === 'rules') e.target.classList.remove('show'); });
+    ['rules', 'tableModal'].forEach(id => $('#' + id).addEventListener('click', e => { if (e.target.id === id) e.target.classList.remove('show'); }));
     const pause = () => {
       state.paused = !state.paused;
       $('#btnPause').textContent = state.paused ? '▶' : '❚❚';
@@ -971,11 +1387,14 @@
       document.body.classList.toggle('paused', state.paused);
     };
     $('#btnPause').onclick = pause;
+    const tb = () => document.documentElement.style.setProperty('--tb', $('.topbar').offsetHeight + 'px');
+    new ResizeObserver(tb).observe($('.topbar')); tb();
     document.querySelectorAll('#speedGroup .seg').forEach(b => { b.onclick = () => setSpeed(+b.dataset.speed); });
     document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT') return;
       if (e.code === 'Space') { e.preventDefault(); pause(); }
       else if (e.key >= '1' && e.key <= '4') setSpeed([1, 2, 4, 10][+e.key - 1]);
-      else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && state.race) {
         const st = state.race.standings(), i = st.findIndex(r => r.id === state.selected);
         const j = clamp(i + (e.key === 'ArrowDown' ? 1 : -1), 0, st.length - 1);
         selectRacer(st[j].id); e.preventDefault();
@@ -983,5 +1402,6 @@
     });
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+  window.__yarost = { state, Champ }; // для отладки и автотестов
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

@@ -72,9 +72,10 @@
     repair: '<path d="M-2-7h4v5h5v4H2v5h-4V2h-5v-4h5z" fill="#fff"/>',
     nitro: '<path d="M2-8-5 1h4l-1 7 7-9H1z" fill="#fff"/>',
     shield: '<path d="M0-7 6-4.5v4C6 3 3 6 0 7.5-3 6-6 3-6-.5v-4z" fill="#fff"/>',
-    hazard: '<path d="M0-7 7 6H-7z" fill="#fff"/><path d="M0-3v4" stroke="#8a1b00" stroke-width="2"/><circle cy="3.6" r="1.1" fill="#8a1b00"/>'
+    hazard: '<path d="M0-7 7 6H-7z" fill="#fff"/><path d="M0-3v4" stroke="#8a1b00" stroke-width="2"/><circle cy="3.6" r="1.1" fill="#8a1b00"/>',
+    jump: '<path d="M-7 5h14L5-4z" fill="#fff"/><path d="M-6-2q4-7 10-5" stroke="#fff" stroke-width="1.6" fill="none"/>'
   };
-  const CELL_COLOR = { boost: '#18c3ff', ammo: '#ff3355', repair: '#2fdc74', nitro: '#22e3ff', shield: '#4f7dff', hazard: '#ff7a00' };
+  const CELL_COLOR = { boost: '#18c3ff', ammo: '#ff3355', repair: '#2fdc74', nitro: '#22e3ff', shield: '#4f7dff', hazard: '#ff7a00', jump: '#e6b800' };
 
   G.Art = { gemIcon, helmet, weaponIcon, CELL_ICON, CELL_COLOR };
 })(window);

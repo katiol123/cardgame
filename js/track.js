@@ -26,9 +26,10 @@
     ];
   }
 
-  function buildTrack(cellsPerLap) {
-    const N = cellsPerLap || G.CFG.CELLS_PER_LAP;
-    const segs = bezierSegments(POINTS);
+  function buildTrack(def) {
+    if (typeof def === 'number' || !def) def = { points: POINTS, startAt: [690, 645], laps: G.CFG.LAPS, cells: def || G.CFG.CELLS_PER_LAP };
+    const pts = def.points;
+    const segs = bezierSegments(pts);
     const samples = [];
     const STEPS = 160;
     segs.forEach(s => { for (let k = 0; k < STEPS; k++) samples.push(bez(s, k / STEPS)); });
@@ -48,12 +49,17 @@
     };
     const angleAt = s => { const a = at(s - 3), b = at(s + 3); return Math.atan2(b[1] - a[1], b[0] - a[0]); };
 
-    // старт — на нижней прямой
-    let s0 = 0, best = 1e9;
-    for (let i = 0; i < samples.length; i++) {
-      const d = Math.hypot(samples[i][0] - 690, samples[i][1] - 645);
-      if (d < best) { best = d; s0 = len[i]; }
+    // старт: либо ближайшая к заданной точке, либо 60% первого отрезка (стартовая прямая)
+    let s0 = len[Math.round(STEPS * 0.6)];
+    if (def.startAt) {
+      let best = 1e9;
+      for (let i = 0; i < samples.length; i++) {
+        const d = Math.hypot(samples[i][0] - def.startAt[0], samples[i][1] - def.startAt[1]);
+        if (d < best) { best = d; s0 = len[i]; }
+      }
     }
+    const N = def.cells || Math.round(total / 40);
+    const laps = def.laps || Math.max(1, Math.round(144 / N));
     const step = total / N;
     const cells = [];
     for (let k = 0; k < N; k++) {
@@ -80,19 +86,30 @@
       if (c.corner === 1 && !prev.corner && !next.corner) c.corner = 0;
     });
     // Спецклетки (по кругу на прямых)
-    const kinds = ['boost', 'ammo', 'repair', 'nitro', 'hazard', 'boost', 'shield', 'ammo', 'hazard', 'repair'];
+    const kinds = def.kinds || ['boost', 'ammo', 'repair', 'nitro', 'hazard', 'boost', 'shield', 'ammo', 'hazard', 'repair'];
+    const every = def.every || 5;
     let kIdx = 0;
     cells.forEach((c, k) => {
       c.kind = 'plain';
       if (k < 3 || k > N - 10) return; // стартовая решётка
-      if (c.corner) return;
-      if (k % 5 === 3) c.kind = kinds[kIdx++ % kinds.length];
+      if (c.corner === 2) return;
+      if (k % every === 3) c.kind = kinds[kIdx++ % kinds.length];
     });
     // после крутых поворотов — шипы/обломки на выходе
     cells.forEach((c, k) => {
       const prev = cells[(k - 1 + N) % N];
       const next = cells[(k + 1) % N];
       if (c.kind === 'plain' && next.kind === 'plain' && !c.corner && prev.corner === 2 && k > 3 && k < N - 10) c.kind = 'hazard';
+    });
+    // трамплины и тоннель
+    (def.jumps || []).forEach(f => { const c = cells[Math.round(f * N) % N]; c.kind = 'jump'; });
+    if (def.tunnel) for (let k = Math.round(def.tunnel[0] * N); k <= Math.round(def.tunnel[1] * N); k++) { cells[k % N].tunnel = true; if (cells[k % N].kind === 'hazard') cells[k % N].kind = 'plain'; }
+    // подписи реальных поворотов: ближайшая клетка к опорной точке
+    const labels = (def.labels || []).map(([pi, text]) => {
+      const P = pts[pi];
+      let bi = 0, bd = 1e9;
+      cells.forEach((c, k) => { const d = Math.hypot(c.x - P[0], c.y - P[1]); if (d < bd) { bd = d; bi = k; } });
+      return { cell: bi, text };
     });
     // Зоны поворотов для подсветки
     const zones = [];
@@ -112,7 +129,8 @@
     d += ' Z';
 
     return {
-      N, laps: G.CFG.LAPS, total: N * G.CFG.LAPS, cells, zones, path: d, length: total, step,
+      def, N, laps, total: N * laps, cells, zones, labels, path: d, length: total, step,
+      jumpLen: def.jumpLen || 2, mods: def.mods || {}, crossing: !!def.crossing,
       cell(pos) { return cells[((Math.floor(pos) % N) + N) % N]; },
       pointAt(pos) { // плавная позиция между клетками
         const s = s0 + pos * step;

@@ -28,11 +28,11 @@
 
   // ---- производные характеристики ----
   const F = {
-    vmax: r => (CFG.vmaxBase + CFG.vmaxPer * r.stats.top) * (1 - CFG.hpSpeedFactor * (1 - r.hp / CFG.MAX_HP)),
-    vmaxRaw: r => CFG.vmaxBase + CFG.vmaxPer * r.stats.top,
+    vmax: r => (CFG.vmaxBase + CFG.vmaxPer * r.stats.top + (r.tm.vmaxAdd || 0)) * (1 - CFG.hpSpeedFactor * (1 - r.hp / CFG.MAX_HP)),
+    vmaxRaw: r => CFG.vmaxBase + CFG.vmaxPer * r.stats.top + (r.tm.vmaxAdd || 0),
     accel: r => CFG.accBase + CFG.accPer * r.stats.accel,
     corner: (r, sev, grip) => CFG.cornerBase + CFG.cornerPer * r.stats.handling +
-      CFG.gripPer * (grip === undefined ? r.grip : grip) - (sev === 2 ? CFG.hairpinPenalty : 0),
+      CFG.gripPer * (grip === undefined ? r.grip : grip) - (sev === 2 ? CFG.hairpinPenalty : 0) + (r.tm.cornerAdd || 0),
     dodge: r => Math.min(0.45, CFG.dodgePer * r.stats.handling + CFG.gripDodge * r.grip),
     nitroBoost: r => CFG.nitroBase + CFG.nitroPer * r.stats.top
   };
@@ -43,7 +43,8 @@
     repair: { name: 'Пит-стоп', text: '+12 прочности' },
     nitro: { name: 'Канистра нитро', text: '+3 нитро' },
     shield: { name: 'Бронепластина', text: '+9 щита' },
-    hazard: { name: 'Обломки', text: '−7 прочности' }
+    hazard: { name: 'Обломки', text: '−7 прочности' },
+    jump: { name: 'Трамплин', text: 'прыжок вперёд, −4 прочности' }
   };
 
   // ---------------- ИИ ----------------
@@ -138,6 +139,8 @@
       this.seed = opts.seed || ((Math.random() * 1e9) | 0);
       this.rand = mulberry32(this.seed);
       this.track = opts.track || G.buildTrack();
+      this.mods = Object.assign({}, this.track.mods || {}, opts.mods || {});
+      if (this.mods.rain) { this.mods.cornerAdd = (this.mods.cornerAdd || 0) - 0.8; this.mods.accMul = (this.mods.accMul || 1) * 0.9; }
       this.round = 1;
       this.turn = 0;
       this.over = false;
@@ -150,14 +153,18 @@
         for (let i = w.length - 1; i > 0; i--) { const j = Math.floor(this.rand() * (i + 1)); [w[i], w[j]] = [w[j], w[i]]; }
         pool.push(...w);
       }
+      const grid = opts.grid || G.RACERS.map((_, i) => i);
       this.racers = G.RACERS.map((d, id) => {
-        const stats = opts.stats ? opts.stats(id, this.rand) : rollStats(this.rand);
+        const ros = opts.roster && opts.roster[id];
+        const stats = ros ? Object.assign({}, ros.stats) : opts.stats ? opts.stats(id, this.rand) : rollStats(this.rand);
+        const slot = grid.indexOf(id);
         const r = {
-          id, num: id + 1, name: d.name, color: d.color, stats,
-          weapon: opts.weapon ? opts.weapon(id) : pool[id],
+          id, num: id + 1, name: d.name, color: d.color, stats, tm: this.mods,
+          human: id === opts.human,
+          weapon: ros ? G.WEAPONS.find(w => w.id === ros.weapon) : opts.weapon ? opts.weapon(id) : pool[id],
           board: new G.Board(this.rand),
           hp: CFG.MAX_HP, shield: 0, speed: 0, frac: 0,
-          pos: -Math.floor(id / 2), lane: id % 2,
+          pos: -Math.floor(slot / 2), lane: slot % 2,
           nitro: 0, grip: 0, charge: 0, burn: null, skip: 0,
           finished: false, place: 0, finishRound: 0,
           crashes: 0, hits: 0, shots: 0, dmgDealt: 0, dmgTaken: 0, skids: 0, lastAttacker: -1,
@@ -165,7 +172,7 @@
         };
         return r;
       });
-      this.order = this.racers.map(r => r.id);
+      this.order = grid.slice();
     }
 
     get current() { return this.racers[this.order[this.turn]]; }
@@ -214,7 +221,16 @@
     }
 
     targetsInRange(r) {
-      return this.racers.filter(t => t !== r && !t.finished && !t.skip && inSector(r.weapon, t.pos - r.pos));
+      const tr = this.track;
+      return this.racers.filter(t => {
+        if (t === r || t.finished || t.skip) return false;
+        if (inSector(r.weapon, t.pos - r.pos)) return true;
+        if (this.mods.crossShots) { // мост «восьмёрки»: цель физически рядом
+          const a = tr.cell(r.pos), b = tr.cell(t.pos);
+          return Math.hypot(a.x - b.x, a.y - b.y) <= r.weapon.range * 14 + 30;
+        }
+        return false;
+      });
     }
 
     tryAttack(r) {
@@ -226,7 +242,9 @@
       if (!targets.length) return null;
       r.charge = 0; r.shots++;
       const hits = targets.map(t => {
-        const chance = w.acc * (1 - F.dodge(t));
+        let acc = w.acc * (this.mods.accMul || 1);
+        if (this.track.cell(r.pos).tunnel || this.track.cell(t.pos).tunnel) acc *= 0.6;
+        const chance = acc * (1 - F.dodge(t));
         const hit = this.rand() < chance;
         const res = { target: t, hit, chance, dmg: 0, absorbed: 0, crashed: false, effects: [] };
         if (!hit) return res;
@@ -302,7 +320,11 @@
         else if (c.kind === 'repair') r.hp = Math.min(CFG.MAX_HP, r.hp + 12);
         else if (c.kind === 'nitro') r.nitro = Math.min(CFG.nitroMax, r.nitro + 3);
         else if (c.kind === 'shield') r.shield = Math.min(CFG.shieldMax, r.shield + 9);
-        else if (c.kind === 'hazard') { const d = this.applyDamage(r, 7, false); r.speed = Math.max(0, r.speed - 1); cellFx.dmg = d.real; cellFx.crashed = d.crashed; }
+        else if (c.kind === 'jump') {
+          cellFx.from = r.pos; r.pos += tr.jumpLen; cellFx.to = r.pos;
+          const d = this.applyDamage(r, 4, false); cellFx.dmg = d.real; cellFx.crashed = d.crashed;
+        }
+        else if (c.kind === 'hazard') { const d = this.applyDamage(r, Math.round(7 * (this.mods.hazardMul || 1)), false); r.speed = Math.max(0, r.speed - 1); cellFx.dmg = d.real; cellFx.crashed = d.crashed; }
       }
       let finished = false;
       if (r.pos >= tr.total) {
@@ -313,11 +335,16 @@
       return { from, to, cells, boost, brake, sev, skid, cellFx, finished };
     }
 
-    playTurn() {
+    // нужен ли ход человека (поле ждёт ввода)
+    needsInput() {
+      const r = this.current;
+      return !this.over && r.human && !r.skip && !(r.burn && r.hp <= r.burn.dmg);
+    }
+
+    playTurn(move) {
       if (this.over) return null;
       const r = this.current;
       const res = { racer: r, round: this.round, idx: this.turn };
-      r.board.tickLocks();
       if (r.burn) {
         const b = r.burn;
         b.turns--; if (b.turns <= 0) r.burn = null;
@@ -328,15 +355,17 @@
         r.skip--;
         res.skipped = true;
         if (r.skip === 0) { r.hp = CFG.crashHp; res.repaired = true; }
+        r.board.tickLocks();
         this.advance();
         return res;
       }
-      if (r.skip > 0) { this.advance(); res.skipped = true; return res; }
-      const mv = AI.choose(this, r);
+      if (r.skip > 0) { r.board.tickLocks(); this.advance(); res.skipped = true; return res; }
+      const mv = move && r.board.swapValid(move[0], move[1]) ? move : AI.choose(this, r);
       res.match = r.board.execute(mv[0], mv[1]);
       res.gains = this.applyGains(r, res.match.tally);
       res.attack = this.tryAttack(r);
       res.move = this.move(r);
+      r.board.tickLocks();
       this.advance();
       return res;
     }

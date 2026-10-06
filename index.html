@@ -15,9 +15,10 @@
   <header class="topbar">
     <div class="logo"><span class="logo-a">ЯРОСТЬ</span><span class="logo-b">ТРАССЫ</span></div>
     <div class="race-info">
+      <div class="chip stage"><span class="chip-l">Этап</span><b id="stageName">—</b></div>
       <div class="chip"><span class="chip-l">Раунд</span><b id="roundNo">1</b></div>
       <div class="chip"><span class="chip-l">Ход</span><b id="turnName">—</b></div>
-      <div class="chip"><span class="chip-l">Лидер</span><b id="leaderName">—</b></div>
+      <div class="chip hide-md"><span class="chip-l">Лидер</span><b id="leaderName">—</b></div>
     </div>
     <div class="controls">
       <button id="btnPause" class="btn icon" title="Пауза (пробел)">❚❚</button>
@@ -27,8 +28,11 @@
         <button data-speed="4" class="btn seg">4×</button>
         <button data-speed="10" class="btn seg">10×</button>
       </div>
-      <button id="btnRules" class="btn">Правила</button>
-      <button id="btnRestart" class="btn">Новая гонка</button>
+      <button id="btnAuto" class="btn only-player" title="Автопилот: ИИ ходит за вас">🤖 Авто</button>
+      <button id="btnSkip" class="btn" title="Мгновенно досчитать текущую гонку">⏭ Досчитать</button>
+      <button id="btnTable" class="btn" title="Таблица чемпионата">🏆</button>
+      <button id="btnRules" class="btn" title="Правила">?</button>
+      <button id="btnRestart" class="btn" title="Новый чемпионат">↺</button>
     </div>
   </header>
 
@@ -66,30 +70,42 @@
   <div class="modal show" id="intro">
     <div class="modal-card intro-card">
       <div class="intro-logo"><span class="logo-a">ЯРОСТЬ</span><span class="logo-b">ТРАССЫ</span></div>
-      <p class="intro-sub">Боевые мотогонки · 16 гонщиков · три в ряд</p>
-      <div class="intro-grid" id="introGrid"></div>
-      <p class="intro-text">Каждый гонщик — ИИ, который по очереди делает ход на своём поле «три в ряд». Собранные блоки превращаются в скорость, нитро, патроны, броню, ремонт и сцепление — а они двигают фишку по трассе и стреляют по соперникам. Ты — зритель: выбирай любого гонщика и смотри на его поле.</p>
-      <div class="intro-btns">
-        <button class="btn big primary" id="btnStart">НА СТАРТ!</button>
-        <button class="btn big" id="btnRules2">Правила</button>
-      </div>
+      <p class="intro-sub">Чемпионат боевых мотогонок · 12 этапов · три в ряд</p>
+      <div id="introBody"></div>
     </div>
   </div>
+
+  <div class="track-intro" id="trackIntro"></div>
 
   <div class="modal" id="rules">
     <div class="modal-card rules-card">
       <button class="close" data-close="rules">✕</button>
-      <h2>Правила гонки</h2>
+      <h2>Правила</h2>
       <div id="rulesBody"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="tableModal">
+    <div class="modal-card rules-card">
+      <button class="close" data-close="tableModal">✕</button>
+      <h2>🏆 Таблица чемпионата</h2>
+      <div id="tableBody"></div>
     </div>
   </div>
 
   <div class="modal" id="results">
     <div class="modal-card results-card">
-      <h2>Финиш!</h2>
+      <h2 id="resTitle">Финиш!</h2>
       <div class="podium" id="podium"></div>
-      <div class="results-table" id="resultsTable"></div>
-      <div class="intro-btns"><button class="btn big primary" id="btnAgain">Новая гонка</button></div>
+      <div id="resultsTable"></div>
+      <div class="intro-btns"><button class="btn big primary" id="btnNext">Следующий этап</button></div>
+    </div>
+  </div>
+
+  <div class="modal" id="final">
+    <div class="modal-card results-card final-card">
+      <div id="finalBody"></div>
+      <div class="intro-btns"><button class="btn big primary" id="btnAgain">Новый чемпионат</button></div>
     </div>
   </div>
 
@@ -97,6 +113,7 @@
 
   <script src="js/data.js"></script>
   <script src="js/board.js"></script>
+  <script src="js/tracks.js"></script>
   <script src="js/track.js"></script>
   <script src="js/race.js"></script>
   <script src="js/fx.js"></script>

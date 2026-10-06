@@ -90,6 +90,7 @@
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, this.cv.width, this.cv.height);
       ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      if (this.pre) { try { this.pre(ctx, dt, this); } catch (e) { console.error(e); } }
       for (let i = this.tasks.length - 1; i >= 0; i--) {
         const k = this.tasks[i];
         k.t += dt;
