@@ -584,3 +584,58 @@ body.your-turn .board { cursor: pointer; touch-action: none; }
   .ti-desc { font-size: 14px; }
   .controls .btn { padding: 6px 9px; font-size: 13px; }
 }
+
+/* =====================================================================
+   ГАРАЖ И СЛАВА
+   ===================================================================== */
+.garage-card { max-width: 980px; }
+.g-top { display: flex; align-items: center; gap: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.g-top small { display: block; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; }
+.g-top b { font: 26px var(--head); font-weight: 400; color: #fff; text-shadow: 0 0 20px var(--rc); }
+.g-fame { margin-left: auto; text-align: right; }
+.g-fame b { color: var(--gold); font-size: 34px; text-shadow: 0 0 24px rgba(255,210,63,.6); display: inline-block; }
+.g-tabs { display: flex; gap: 6px; margin: 14px 0 10px; }
+.g-tab { flex: 1; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,.03); cursor: pointer; font: 15px var(--head); transition: .2s; }
+.g-tab:hover { border-color: rgba(255,255,255,.3); }
+.g-tab.on { background: linear-gradient(180deg, #ff4d6a, #b3132f); border-color: #ff8095; box-shadow: 0 0 20px rgba(255,51,85,.4); }
+.g-body { display: grid; gap: 8px; animation: igin .35s both; }
+.g-body h4, .g-news h4 { font: 14px var(--head); color: var(--gold); margin: 10px 0 2px; }
+.g-body h4 small { font-family: 'Exo 2'; color: var(--muted); font-size: 11px; margin-left: 6px; }
+.g-hint { color: var(--muted); margin: 0 0 4px; font-size: 13px; }
+.g-item { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.035); border: 1px solid var(--line); }
+.g-main { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.g-main b { font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.g-main small { color: var(--muted); font-size: 12px; }
+.g-main .stat { margin-top: 2px; }
+.g-ic { font-size: 28px; width: 40px; text-align: center; }
+.lv { display: inline-flex; gap: 3px; }
+.lv i { width: 14px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.1); }
+.lv i.on { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+.btn.buy { white-space: nowrap; background: linear-gradient(180deg, #2a6b3f, #164a28); border-color: #3fdc7a; min-width: 120px; }
+.btn.buy b { color: var(--gold); margin-left: 4px; }
+.btn.buy.poor, .btn.buy:disabled { background: rgba(255,255,255,.04); border-color: var(--line); color: var(--muted); cursor: not-allowed; transform: none; }
+.btn.buy.poor b { color: #a08a4a; }
+.g-cur { display: flex; gap: 12px; align-items: center; padding: 12px; border-radius: 14px; background: linear-gradient(135deg, color-mix(in srgb, var(--wc) 18%, transparent), rgba(255,255,255,.02)); border: 1px solid color-mix(in srgb, var(--wc) 40%, transparent); }
+.g-cur b { display: block; font-size: 16px; }
+.g-cur small { display: block; color: var(--muted); font-size: 12px; }
+.g-sell { margin-left: auto; color: var(--gold); font-size: 12px; white-space: nowrap; }
+.g-shop { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.g-w { display: grid; gap: 6px; padding: 10px; border-radius: 14px; background: rgba(255,255,255,.03); border: 1px solid color-mix(in srgb, var(--rr) 45%, transparent); position: relative; overflow: hidden; transition: transform .2s, box-shadow .2s; }
+.g-w::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--rr); box-shadow: 0 0 14px var(--rr); }
+.g-w:hover { transform: translateY(-2px); box-shadow: 0 0 22px color-mix(in srgb, var(--rr) 35%, transparent); }
+.g-w.own { background: color-mix(in srgb, var(--rr) 12%, transparent); }
+.g-w-h { display: flex; gap: 8px; align-items: center; }
+.g-w-h b { display: block; font-size: 13px; }
+.g-w-h small { font-size: 11px; font-weight: 800; }
+.g-w-s { display: flex; flex-wrap: wrap; gap: 4px; font-size: 11px; }
+.g-w-s span { padding: 1px 6px; border-radius: 6px; background: rgba(0,0,0,.35); }
+.g-w-d { color: var(--muted); font-size: 11px; }
+.g-w .btn.buy { justify-self: stretch; font-size: 12px; }
+.g-news { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,.3); font-size: 12px; display: grid; gap: 3px; max-height: 160px; overflow: auto; }
+.ti-news { font-size: 13px; color: #cfd6e6; padding: 8px 12px; border-radius: 12px; background: rgba(255,210,63,.07); border: 1px solid rgba(255,210,63,.25); animation-delay: 1.2s; }
+.results-card td.fame { color: var(--gold); font-weight: 800; cursor: help; }
+@media (max-width: 720px) {
+  .g-item { flex-wrap: wrap; }
+  .g-fame b { font-size: 24px; }
+  .g-tab { font-size: 13px; padding: 8px 4px; }
+}

@@ -618,7 +618,7 @@
           </div>
         </div>
         <div class="rc-weapon" id="m-charge" style="--wc:${w.color}">
-          <div class="w-head">${Art.weaponIcon(w, 40)}<div><b>${w.name}</b><small>${w.desc}</small></div></div>
+          <div class="w-head">${Art.weaponIcon(w, 40)}<div><b>${w.name}</b><small><span style="color:${window.RARITY[w.rarity].color}">${window.RARITY[w.rarity].name}</span>${w.mods && (w.mods.cal + w.mods.mag + w.mods.aim) ? ` · тюнинг ${w.mods.cal}/${w.mods.mag}/${w.mods.aim}` : ''} · ${w.desc}</small></div></div>
           <div class="w-stats">
             <span><em>Урон</em>${Math.round(w.dmg * CFG.dmgMul)}</span>
             <span><em>Дальность</em>${w.range} · ${DIR[w.dir]}</span>
@@ -661,7 +661,7 @@
       else if (r.burn) { st = `🔥 горит: ${r.burn.turns} х.`; sc = 'warn'; }
       else if (r.id === state.acting) { st = 'ходит'; sc = 'go'; }
       const s = $('#c-status'); s.textContent = st; s.className = 'tag status ' + sc;
-      if (Champ.d && Champ.d.points) { const cs = Champ.standings(); $('#c-champ').textContent = `🏆 ${Champ.d.points[r.id]} оч. · ${cs.indexOf(r.id) + 1}-й в чемпионате`; }
+      if (Champ.d && Champ.d.points) { const cs = Champ.standings(); $('#c-champ').textContent = `🏆 ${Champ.d.points[r.id]} оч. · ${cs.indexOf(r.id) + 1}-й · ★${(Champ.d.fame ? Champ.d.fame[r.id] : 0) + r.fame}`; }
       $('#c-hp').textContent = Math.round(r.hp);
       $('#c-hpbar').style.width = r.hp + '%';
       $('#c-hpbar').classList.toggle('low', r.hp < 35);
@@ -743,7 +743,7 @@
     }
     const locks = race.racers[state.selected].board.grid.filter(g => g && g.lock).length;
     $('#boardHead').innerHTML = `<div class="bh-ava">${Art.helmet(r, 30)}</div><div class="bh-t"><b>Поле: ${r.name}${r.human ? ' (вы)' : ''}</b>
-      <small>${r.finished ? 'гонка окончена' : r.skip ? 'мотоцикл в ремонте' : acting && r.human && Input.resolve ? 'поменяйте местами два соседних блока' : acting ? 'делает ход…' : wait === 0 ? 'следующий ход' : 'ход через ' + wait}${locks ? ` · ❄ заморожено: ${locks}` : ''}</small></div>
+      <small>${r.finished ? (acting && r.human && Input.resolve ? '🎉 шоу для фанатов — зарабатывайте славу!' : '🎉 шоу для фанатов: блоки = ★ слава') : r.skip ? 'мотоцикл в ремонте' : acting && r.human && Input.resolve ? 'поменяйте местами два соседних блока' : acting ? 'делает ход…' : wait === 0 ? 'следующий ход' : 'ход через ' + wait}${locks ? ` · ❄ заморожено: ${locks}` : ''}</small></div>
       <div class="bh-turn ${acting ? 'on' : ''} ${r.human ? 'you' : ''}">${acting ? (r.human && Input.resolve ? 'ВАШ ХОД' : 'ХОД') : ''}</div>`;
     $('#boardPanel').classList.toggle('active-turn', acting);
   }
@@ -810,6 +810,14 @@
       const p = TV.xy(r.id);
       trackFx.text(p.x, p.y - 24, '🔥 −' + res.burn.dmg, '#ff9a00', { size: 16 });
       if (res.burn.crashed) { FXS.crash(r.id); log(`${nm(r)} сгорает дотла — авария!`, 'bad'); }
+    }
+    if (res.show) {
+      if (obs()) { await BV.animate(res.match, r); if (!alive()) return; }
+      else { Stand.flash(r.id, 'think'); await wait(90); }
+      const p = TV.xy(r.id);
+      if (res.fame) trackFx.text(p.x, p.y - 26, '★+' + res.fame, '#ffd23f', { size: 14 });
+      if (obs()) { $('#gains').innerHTML = `<span class="g-l">🎉 Шоу для фанатов:</span><span class="gchip" style="--c:#ffd23f">★+${res.fame} славы</span>${res.match.combo > 1 ? `<span class="gchip" style="--c:#ff9a3c">каскад ×${res.match.combo}</span>` : ''}`; Card.update(r); }
+      return;
     }
     if (res.skipped) {
       const p = TV.xy(r.id);
@@ -904,6 +912,7 @@
         banner('ПОСЛЕДНИЙ КРУГ!', '#ff3355');
       }
     }
+    if (res.fame > 0 && !res.show) { const pf = TV.xy(r.id); trackFx.text(pf.x + 18, pf.y - 40, '★+' + res.fame, '#ffd23f', { size: 12, life: 1 }); }
     if (obs()) Card.update(r);
     const sel = race.racers[state.selected];
     if (sel !== r) Card.update(sel);
@@ -918,12 +927,12 @@
     d: null,
     rollRoster() {
       const ws = [];
-      while (ws.length < 16) ws.push(...shuffle(WEAPONS.map(w => w.id)));
-      return window.RACERS.map((_, i) => ({ stats: window.rollStats(Math.random), weapon: ws[i] }));
+      while (ws.length < 16) ws.push(...shuffle(WEAPONS.filter(w => !w.shop).map(w => w.id)));
+      return window.RACERS.map((_, i) => window.Shop.ensure({ stats: window.rollStats(Math.random), weapon: ws[i] }));
     },
     create(roster, human) {
       const z = () => Array(16).fill(0);
-      Champ.d = { v: 1, roster, human, stage: 0, points: z(), wins: z(), podiums: z(), best: Array(16).fill(99), history: [], weather: null };
+      Champ.d = { v: 1, roster, human, stage: 0, points: z(), wins: z(), podiums: z(), best: Array(16).fill(99), history: [], weather: null, fame: z(), news: [] };
       Champ.save();
     },
     get done() { return Champ.d && Champ.d.stage >= window.TRACKS.length; },
@@ -947,7 +956,9 @@
         if (r.place === 1) d.wins[r.id]++;
         if (r.place <= 3) d.podiums[r.id]++;
         d.best[r.id] = Math.min(d.best[r.id], r.place);
-        row[r.id] = { place: r.place, pts };
+        const prize = window.ECON.prize[r.place - 1] || 0;
+        d.fame[r.id] += prize + r.fame;
+        row[r.id] = { place: r.place, pts, prize, fame: r.fame, show: r.showFame };
       });
       d.history.push({ track: Champ.def().id, rain: d.weather && d.weather.rain, row });
       d.stage++;
@@ -955,7 +966,15 @@
       return row;
     },
     save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(Champ.d)); } catch (e) { /* хранилище недоступно */ } },
-    load() { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); return s && s.v === 1 ? s : null; } catch (e) { return null; } },
+    load() {
+      try {
+        const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+        if (!s || s.v !== 1) return null;
+        s.fame = s.fame || Array(16).fill(0); s.news = s.news || [];
+        s.roster.forEach(r => window.Shop.ensure(r));
+        return s;
+      } catch (e) { return null; }
+    },
     clear() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* */ } }
   };
   const RN = id => window.RACERS[id];
@@ -987,6 +1006,7 @@
       f(move);
     },
     advise(race, r) {
+      if (r.finished) { $('#gains').innerHTML = `<span class="g-l">🎉 Шоу для фанатов: каждый сожжённый блок — ★ слава. Каскады и спецблоки — ещё больше!</span>`; return; }
       const W = window.RaceAI.weights(race, r);
       const top = W.map((w, i) => [w, i]).sort((a, b) => b[0] - a[0]).slice(0, 2).map(x => x[1]);
       $('#gains').innerHTML = `<span class="g-l">🔧 Механик: сейчас важнее всего —</span>` + top.map(i => `<span class="gchip" style="--c:${GEMS[i].color}">${GEMS[i].name}</span>`).join('');
@@ -1235,6 +1255,7 @@
             <div class="ti-facts">${def.facts.map(f => `<span>${f}</span>`).join('')}<span>${tr.N} клеток × ${tr.laps} ${tr.laps < 5 ? 'круга' : 'кругов'}</span></div>
             <p class="ti-desc">${def.desc}</p>
             <div class="ti-feats">${def.features.map(([ic, t]) => `<div><i>${ic}</i>${t}</div>`).join('')}<div class="wx ${state.rain ? 'wet' : ''}"><i>${wet[0]}</i>${wet[1]}</div></div>
+            ${d.news && d.news.length ? `<div class="ti-news"><b>📰 Паддок:</b> ${d.news.slice(0, 3).map(n => `${nmId(n.id)} — ${n.text}`).join(' · ')}</div>` : ''}
             <div class="ti-grid">${me ? `Ваша позиция на старте: <b>${me}</b> из 16` : `Поул-позиция: ${nmId(grid[0])}`}${leader >= 0 ? ` · лидер чемпионата ${nmId(leader)} стартует последним` : ' · стартовая решётка по жребию'}</div>
             <div class="ti-btns"><button class="btn big primary" id="tiGo">НА СТАРТ!</button>${d.stage ? '<button class="btn big" id="tiTable">🏆 Таблица</button>' : ''}</div>
           </div>
@@ -1277,14 +1298,107 @@
     $('#resTitle').innerHTML = `${flagSvg(def.id, 34)} Этап ${Champ.d.stage}: ${def.name}`;
     $('#podium').innerHTML = [st[1], st[0], st[2]].map((r, i) => `<div class="pod p${[2, 1, 3][i]}" style="--rc:${r.color}">
       <div class="pod-ava">${Art.helmet(r, i === 1 ? 90 : 70)}</div><b>${r.name}</b><small>+${row[r.id].pts} очк.</small><div class="pod-col">${[2, 1, 3][i]}</div></div>`).join('');
-    $('#resultsTable').innerHTML = `<div class="res-cols"><div><h3>Итоги гонки</h3><table><thead><tr><th>#</th><th>Гонщик</th><th>Очки</th><th>Попад.</th><th>Урон</th><th>Аварии</th></tr></thead><tbody>` +
-      st.map(r => `<tr class="${r.human ? 'me' : ''}"><td>${r.place}</td><td>${nm(r)}${r.dnf ? ' <small class="dnf">не финишировал</small>' : ''}</td><td class="pts">${row[r.id].pts ? '+' + row[r.id].pts : '—'}</td><td>${r.hits}/${r.shots}</td><td>${Math.round(r.dmgDealt)}</td><td>${r.crashes}</td></tr>`).join('') +
+    $('#resultsTable').innerHTML = `<div class="res-cols"><div><h3>Итоги гонки</h3><table><thead><tr><th>#</th><th>Гонщик</th><th>Очки</th><th title="призовые + зрелищность + шоу">Слава</th><th>Попад.</th><th>Урон</th><th>Аварии</th></tr></thead><tbody>` +
+      st.map(r => `<tr class="${r.human ? 'me' : ''}"><td>${r.place}</td><td>${nm(r)}${r.dnf ? ' <small class="dnf">не финишировал</small>' : ''}</td><td class="pts">${row[r.id].pts ? '+' + row[r.id].pts : '—'}</td><td class="fame" title="призовые ★${row[r.id].prize} · в гонке ★${row[r.id].fame - row[r.id].show} · шоу ★${row[r.id].show}">★${row[r.id].prize + row[r.id].fame}</td><td>${r.hits}/${r.shots}</td><td>${Math.round(r.dmgDealt)}</td><td>${r.crashes}</td></tr>`).join('') +
       `</tbody></table></div><div><h3>Чемпионат</h3>${champTableHtml(row)}</div></div>`;
     const last = Champ.done;
+    if (!last) aiShopping();
+    const me = Champ.d.human;
     $('#btnNext').textContent = last ? '🏆 Итоги чемпионата' : `Следующий этап → ${window.TRACKS[Champ.d.stage].name}`;
-    $('#btnNext').onclick = () => { $('#results').classList.remove('show'); if (last) Final.show(); else TrackIntro.show(); };
+    if (!last && me >= 0) $('#btnNext').textContent = `🔧 В гараж (★${Champ.d.fame[me]})`;
+    $('#btnNext').onclick = () => {
+      $('#results').classList.remove('show');
+      if (last) Final.show();
+      else if (me >= 0) Garage.show(() => TrackIntro.show());
+      else TrackIntro.show();
+    };
     $('#results').classList.add('show');
     FXS.confetti(st[0].id);
+  }
+
+  // =====================================================================
+  //                       ГАРАЖ (покупки за «Славу»)
+  // =====================================================================
+  const Garage = {
+    tab: 'bike', after: null,
+    show(after) {
+      Garage.after = after; Garage.tab = Garage.tab || 'bike';
+      Garage.render();
+      $('#garage').classList.add('show');
+    },
+    render() {
+      const d = Champ.d, id = d.human, ros = window.Shop.ensure(d.roster[id]), fame = d.fame[id];
+      const w = window.Shop.weaponOf(ros), opts = window.Shop.options(ros);
+      const find = (type, key) => opts.find(o => o.type === type && o.key === key);
+      const buyBtn = (o, txt) => !o ? '<button class="btn buy" disabled>МАКС.</button>' :
+        `<button class="btn buy ${o.price <= fame ? '' : 'poor'}" data-type="${o.type}" data-key="${o.key}" ${o.price <= fame ? '' : 'disabled'}>${txt || 'Купить'} <b>★${o.price}</b></button>`;
+      const pips = l => `<span class="lv">${[0, 1, 2].map(i => `<i class="${i < l ? 'on' : ''}"></i>`).join('')}</span>`;
+      let body = '';
+      if (Garage.tab === 'bike') {
+        const ST = [['accel', 'Разгон', 'c-acc', 's-acc', `+${String(CFG.accPer).replace('.', ',')} к приросту скорости за ход`], ['top', 'Макс. скорость', 'c-top', 's-top', `+${fmt(CFG.vmaxPer)} клетки к потолку и сильнее нитро`], ['handling', 'Маневренность', 'c-han', 's-han', `+${fmt(CFG.cornerPer)} к пределу в поворотах и +${fmt(CFG.dodgePer * 100)}% уворота`]];
+        body = `<p class="g-hint">Каждая покупка добавляет +1 к характеристике (максимум 20). Цена растёт с уровнем.</p>` + ST.map(([k, n, c, sc, eff]) =>
+          `<div class="g-item"><div class="g-main"><b class="${c}">${n}</b><small>${eff}</small>${statBar('', ros.stats[k], '', sc).replace('<div class="stat-l"><span></span></div>', '')}</div>${buyBtn(find('stat', k), '+1')}</div>`).join('');
+      } else if (Garage.tab === 'weapon') {
+        const R = window.RARITY;
+        body = `<div class="g-cur" style="--wc:${w.color}">${Art.weaponIcon(w, 46)}<div><small>Текущее оружие · <span style="color:${R[w.rarity].color}">${R[w.rarity].name}</span></small><b>${w.name}</b><small>${w.desc}</small></div><div class="g-sell">продажа: ★${window.Shop.sellValue(ros)}</div></div>
+          <h4>Тюнинг текущего оружия</h4>` +
+          Object.entries(window.ECON.wmods).map(([k, m]) => `<div class="g-item"><div class="g-main"><b>${m.icon} ${m.name} ${pips(ros.wmods[k])}</b><small>${m.desc}</small></div>${buyBtn(find('wmod', k))}</div>`).join('') +
+          `<h4>Оружейный рынок <small>тюнинг при смене пушки сбрасывается, старая продаётся за полцены</small></h4><div class="g-shop">` +
+          WEAPONS.slice().sort((a, b) => a.price - b.price).map(x => {
+            const o = find('weapon', x.id), r = R[x.rarity];
+            return `<div class="g-w ${x.id === ros.weapon ? 'own' : ''}" style="--rr:${r.color};--wc:${x.color}">
+              <div class="g-w-h">${Art.weaponIcon(x, 34)}<div><b>${x.name}</b><small style="color:${r.color}">${r.name}${x.shop ? ' · только в гараже' : ''}</small></div></div>
+              <div class="g-w-s"><span>урон ${Math.round(x.dmg * CFG.dmgMul)}</span><span>дальн. ${x.range} ${DIR[x.dir]}</span><span>заряд ${x.charge}</span><span>точн. ${Math.round(x.acc * 100)}%</span></div>
+              <small class="g-w-d">${x.desc}</small>
+              ${x.id === ros.weapon ? '<button class="btn buy" disabled>Установлено</button>' : buyBtn(o, `★${x.price} − ★${o.sell} =`).replace(/<b>★\d+<\/b>/, `<b>★${o.price}</b>`)}</div>`;
+          }).join('') + '</div>';
+      } else {
+        body = `<p class="g-hint">Специалисты работают на вас каждую гонку. Три уровня у каждого.</p>` +
+          Object.entries(window.ECON.crew).map(([k, c]) => `<div class="g-item crew"><div class="g-ic">${c.icon}</div><div class="g-main"><b>${c.name} ${pips(ros.crew[k])}</b><small>${c.desc}</small></div>${buyBtn(find('crew', k), 'Нанять')}</div>`).join('');
+      }
+      const news = (d.news || []).filter(n => n.id !== id);
+      $('#garageBody').innerHTML = `
+        <div class="g-top" style="--rc:${RN(id).color}">${helmetId(id, 58)}<div><small>Гараж команды</small><b>${RN(id).name}</b></div>
+          <div class="g-fame"><small>Слава</small><b id="gFame">★ ${fame}</b></div></div>
+        <div class="g-tabs">${[['bike', '🏍 Байк'], ['weapon', '🔫 Оружие'], ['crew', '👥 Команда']].map(([k, t]) => `<button class="g-tab ${Garage.tab === k ? 'on' : ''}" data-tab="${k}">${t}</button>`).join('')}</div>
+        <div class="g-body">${body}</div>
+        ${news.length ? `<div class="g-news"><h4>📰 Новости паддока</h4>${news.slice(0, 8).map(n => `<div>${nmId(n.id)}: ${n.text}</div>`).join('')}</div>` : ''}`;
+      document.querySelectorAll('#garageBody .g-tab').forEach(b => { b.onclick = () => { Garage.tab = b.dataset.tab; Garage.render(); }; });
+      document.querySelectorAll('#garageBody .buy[data-type]').forEach(b => { b.onclick = () => Garage.buy(b); });
+    },
+    buy(btn) {
+      const d = Champ.d, id = d.human, ros = d.roster[id];
+      const o = window.Shop.options(ros).find(x => x.type === btn.dataset.type && x.key === btn.dataset.key);
+      if (!o || o.price > d.fame[id]) return;
+      window.Shop.apply(ros, o);
+      d.fame[id] -= o.price;
+      Champ.save();
+      const r = btn.getBoundingClientRect();
+      for (let i = 0; i < 10; i++) {
+        const f = el('div', 'flyer'); f.style.setProperty('--c', '#ffd23f'); $('#flyers').appendChild(f);
+        const a = f.animate([{ transform: `translate(${r.left + r.width / 2}px,${r.top}px) scale(1)`, opacity: 1 },
+          { transform: `translate(${r.left + r.width / 2 + (Math.random() - 0.5) * 160}px,${r.top - 60 - Math.random() * 80}px) scale(.3)`, opacity: 0 }], { duration: 600 + Math.random() * 300, easing: 'ease-out' });
+        a.onfinish = () => f.remove();
+      }
+      Garage.render();
+      const fe = $('#gFame'); fe.classList.add('bump');
+    },
+    close() { $('#garage').classList.remove('show'); const f = Garage.after; Garage.after = null; if (f) f(); }
+  };
+
+  // покупки ИИ между этапами
+  function aiShopping() {
+    const d = Champ.d, rnd = Math.random;
+    d.news = [];
+    d.roster.forEach((ros, id) => {
+      if (id === d.human) return;
+      const res = window.Shop.aiSpend(ros, d.fame[id], rnd);
+      d.fame[id] = res.wallet;
+      res.bought.forEach(text => d.news.push({ id, text }));
+    });
+    // самые громкие новости — про оружие
+    d.news.sort((a, b) => (/«/.test(b.text) ? 1 : 0) - (/«/.test(a.text) ? 1 : 0));
+    Champ.save();
   }
 
   const Final = {
@@ -1320,6 +1434,8 @@
       <section><h3>Чемпионат</h3><p>12 этапов на легендарных трассах мира. За место в гонке начисляются очки:</p>
         <div class="points-row">${window.POINTS_TABLE.map((p, i) => `<span><em>${i + 1}</em>${p}</span>`).join('')}<span><em>13–16</em>0</span></div>
         <p>На первом этапе стартовая решётка — по жребию, дальше в обратном порядке таблицы: лидер стартует последним. При равенстве очков выше тот, у кого больше побед, затем подиумов. Прогресс сохраняется в браузере.</p></section>
+      <section><h3>Слава ★ и гараж</h3><p>Слава — валюта спонсоров. Её приносят: <b>призовые</b> за место (★${window.ECON.prize[0]} за победу … ★${window.ECON.prize[15]} за 16-е), <b>зрелищность</b> — попадание ★${window.ECON.fameHit}, отправить соперника в аварию ★${window.ECON.fameCrash}, каскад ×3 и больше ★${window.ECON.fameCombo} за каждую волну сверх двух, и <b>шоу для фанатов</b>: финишировавший продолжает ходить на поле, и каждый сожжённый блок даёт славу.</p>
+        <p>Между этапами славу тратят в гараже: +1 к характеристикам байка, оружие разной редкости (обычное → редкое → эпическое → легендарное, 4 пушки только в гараже), тюнинг оружия (калибр, магазин, прицел) и команда — механик, оружейник, бронетехник, нитро-инженер. ИИ-соперники тоже зарабатывают и покупают — их покупки видны в «Новостях паддока».</p></section>
       <section><h3>Очерёдность</h3><p>Гонщики ходят строго по очереди, в порядке стартовой решётки. За ход гонщик: <b>1)</b> делает один обмен на своём поле «три в ряд»; <b>2)</b> получает бонусы от сгоревших блоков (каскады дают множитель ×1,5, ×2…); <b>3)</b> стреляет, если оружие заряжено и цель в секторе; <b>4)</b> передвигает фишку по трассе на число клеток, равное скорости. Если вы играете за гонщика, в свой ход поменяйте местами два соседних блока (перетаскиванием или двумя щелчками). Стрельба, нитро и торможение — автоматические.</p></section>
       <section><h3>Характеристики (1–20, у всех одинаковая сумма — ${CFG.STAT_TOTAL})</h3>
         <ul>
@@ -1370,6 +1486,7 @@
     $('#btnRestart').onclick = () => { if (confirm('Начать новый чемпионат? Текущий прогресс будет потерян.')) { state.raceId++; Input.finish(null); Champ.clear(); $('#results').classList.remove('show'); $('#trackIntro').classList.remove('show'); Menu.show(); } };
     $('#btnAgain').onclick = () => { $('#final').classList.remove('show'); Menu.show(); };
     $('#btnTable').onclick = () => { if (Champ.d) Table.open(); };
+    $('#gClose').onclick = () => Garage.close();
     $('#btnSkip').onclick = () => { if (!state.race || state.race.over || !Champ.d) return; state.skip = true; if (Input.resolve) Input.finish(null); };
     $('#btnAuto').onclick = () => {
       state.autopilot = !state.autopilot;

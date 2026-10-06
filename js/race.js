@@ -34,7 +34,7 @@
     corner: (r, sev, grip) => CFG.cornerBase + CFG.cornerPer * r.stats.handling +
       CFG.gripPer * (grip === undefined ? r.grip : grip) - (sev === 2 ? CFG.hairpinPenalty : 0) + (r.tm.cornerAdd || 0),
     dodge: r => Math.min(0.45, CFG.dodgePer * r.stats.handling + CFG.gripDodge * r.grip),
-    nitroBoost: r => CFG.nitroBase + CFG.nitroPer * r.stats.top
+    nitroBoost: r => CFG.nitroBase + CFG.nitroPer * r.stats.top + 0.4 * r.crew.nitro
   };
 
   const CELL_FX = {
@@ -88,7 +88,7 @@
     choose(race, r) {
       let moves = r.board.listMoves();
       if (!moves.length) { r.board.shuffle(); moves = r.board.listMoves(); }
-      const W = AI.weights(race, r);
+      const W = r.finished ? [1, 1, 1, 1, 1, 1] : AI.weights(race, r);
       let best = moves[0], bs = -1e9;
       for (const m of moves) {
         const e = r.board.evaluate(m[0], m[1]);
@@ -109,6 +109,7 @@
     pickTargets(race, r, list) {
       const w = r.weapon;
       if (w.effect.aoe) return list;
+      if (w.effect.chain) return list.slice().sort((a, b) => Math.abs(a.pos - r.pos) - Math.abs(b.pos - r.pos)).slice(0, w.effect.chain);
       const st = race.standings();
       let best = null, bs = -1e9;
       for (const t of list) {
@@ -146,7 +147,7 @@
       this.over = false;
       this.finishOrder = [];
       this.firstFinishRound = 0;
-      const weapons = G.WEAPONS.slice();
+      const weapons = G.WEAPONS.filter(w => !w.shop);
       const pool = [];
       while (pool.length < 16) {
         const w = weapons.slice();
@@ -161,7 +162,8 @@
         const r = {
           id, num: id + 1, name: d.name, color: d.color, stats, tm: this.mods,
           human: id === opts.human,
-          weapon: ros ? G.WEAPONS.find(w => w.id === ros.weapon) : opts.weapon ? opts.weapon(id) : pool[id],
+          weapon: ros ? G.makeWeapon(ros.weapon, ros.wmods) : opts.weapon ? opts.weapon(id) : pool[id],
+          crew: Object.assign({ mech: 0, gun: 0, armor: 0, nitro: 0 }, ros && ros.crew), fame: 0, showFame: 0,
           board: new G.Board(this.rand),
           hp: CFG.MAX_HP, shield: 0, speed: 0, frac: 0,
           pos: -Math.floor(slot / 2), lane: slot % 2,
@@ -173,6 +175,12 @@
         return r;
       });
       this.order = grid.slice();
+      // стартовые бонусы от команды
+      this.racers.forEach(r => {
+        r.shield = 8 * r.crew.armor;
+        r.charge = Math.floor(r.weapon.charge * 0.25 * r.crew.gun);
+        r.nitro = Math.min(CFG.nitroMax, 2 * r.crew.nitro);
+      });
     }
 
     get current() { return this.racers[this.order[this.turn]]; }
@@ -201,7 +209,7 @@
     }
 
     crash(t) {
-      t.skip = CFG.crashSkip; t.speed = 0; t.nitro = 0; t.shield = 0; t.burn = null; t.frac = 0;
+      t.skip = CFG.crashSkip - (t.crew && t.crew.mech >= 3 ? 1 : 0); t.speed = 0; t.nitro = 0; t.shield = 0; t.burn = null; t.frac = 0;
       t.charge = Math.floor(t.charge / 2); t.crashes++;
     }
 
@@ -212,7 +220,7 @@
       r.nitro = Math.min(CFG.nitroMax, r.nitro + tally[1]);
       r.charge = Math.min(w.charge, r.charge + tally[2] * CFG.ammoPer);
       r.shield = Math.min(CFG.shieldMax, r.shield + tally[3] * CFG.shieldPer);
-      r.hp = Math.min(CFG.MAX_HP, r.hp + tally[4] * CFG.repairPer);
+      r.hp = Math.min(CFG.MAX_HP, r.hp + tally[4] * CFG.repairPer * (1 + 0.15 * r.crew.mech));
       r.grip = Math.min(CFG.gripMax, r.grip + tally[5]);
       return {
         speed: r.speed - before.speed, nitro: r.nitro - before.nitro, charge: r.charge - before.charge,
@@ -253,6 +261,7 @@
         const d = this.applyDamage(t, Math.round(w.dmg * CFG.dmgMul), w.effect.pierce);
         res.dmg = d.real; res.absorbed = d.absorbed; res.crashed = d.crashed;
         r.dmgDealt += d.real;
+        r.fame += G.ECON.fameHit + (d.crashed ? G.ECON.fameCrash : 0);
         const e = w.effect;
         if (e.slow) { t.speed = Math.max(0, t.speed - e.slow); res.effects.push(`−${e.slow} скорости`); }
         if (e.burn && !t.skip) { t.burn = { dmg: e.burn.dmg, turns: e.burn.turns, src: r.id }; res.effects.push('поджог'); }
@@ -317,7 +326,7 @@
         cellFx = { kind: c.kind };
         if (c.kind === 'boost') r.speed = Math.min(vm, r.speed + 2);
         else if (c.kind === 'ammo') r.charge = Math.min(r.weapon.charge, r.charge + 3);
-        else if (c.kind === 'repair') r.hp = Math.min(CFG.MAX_HP, r.hp + 12);
+        else if (c.kind === 'repair') r.hp = Math.min(CFG.MAX_HP, r.hp + 12 + 8 * r.crew.mech);
         else if (c.kind === 'nitro') r.nitro = Math.min(CFG.nitroMax, r.nitro + 3);
         else if (c.kind === 'shield') r.shield = Math.min(CFG.shieldMax, r.shield + 9);
         else if (c.kind === 'jump') {
@@ -338,13 +347,25 @@
     // нужен ли ход человека (поле ждёт ввода)
     needsInput() {
       const r = this.current;
-      return !this.over && r.human && !r.skip && !(r.burn && r.hp <= r.burn.dmg);
+      return !this.over && r.human && (r.finished || (!r.skip && !(r.burn && r.hp <= r.burn.dmg)));
     }
 
     playTurn(move) {
       if (this.over) return null;
       const r = this.current;
       const res = { racer: r, round: this.round, idx: this.turn };
+      const fame0 = r.fame;
+      if (r.finished) {
+        // «Шоу для фанатов»: после финиша поле приносит славу
+        const mv = move && r.board.swapValid(move[0], move[1]) ? move : AI.choose(this, r);
+        res.match = r.board.execute(mv[0], mv[1]);
+        const gain = Math.round(res.match.tally.reduce((a, b) => a + b, 0) + res.match.specials * 3);
+        r.fame += gain; r.showFame += gain;
+        res.show = true; res.fame = gain;
+        r.board.tickLocks();
+        this.advance();
+        return res;
+      }
       if (r.burn) {
         const b = r.burn;
         b.turns--; if (b.turns <= 0) r.burn = null;
@@ -362,9 +383,11 @@
       if (r.skip > 0) { r.board.tickLocks(); this.advance(); res.skipped = true; return res; }
       const mv = move && r.board.swapValid(move[0], move[1]) ? move : AI.choose(this, r);
       res.match = r.board.execute(mv[0], mv[1]);
+      if (res.match.combo >= 3) r.fame += G.ECON.fameCombo * (res.match.combo - 2);
       res.gains = this.applyGains(r, res.match.tally);
       res.attack = this.tryAttack(r);
       res.move = this.move(r);
+      res.fame = r.fame - fame0;
       r.board.tickLocks();
       this.advance();
       return res;
@@ -376,7 +399,7 @@
         this.turn++;
         if (this.turn >= n) { this.turn = 0; this.round++; this.checkEnd(true); }
         if (this.over) return;
-        if (!this.current.finished) return;
+        if (!this.current.finished || !this.current.dnf) return;
       }
       this.checkEnd(false);
     }

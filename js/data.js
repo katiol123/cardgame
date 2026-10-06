@@ -84,6 +84,60 @@
       effect: { knock: 2 }, fx: 'chain', color: '#d6d3d1', desc: 'Удар в ближнем бою отбрасывает соперника назад.' }
   ];
 
+  // Редкие пушки — только в магазине гаража
+  WEAPONS.push(
+    { id: 'grad', name: 'Кассетные ракеты «Град»', dmg: 16, range: 9, dir: 'front', charge: 14, acc: 0.78, shop: true,
+      effect: { aoe: true }, fx: 'rocket', color: '#ff8c42', desc: 'Залп кассетных ракет накрывает всех впереди в зоне поражения.' },
+    { id: 'tesla', name: 'Тесла-пушка «Шаровая молния»', dmg: 14, range: 6, dir: 'both', charge: 12, acc: 0.9, shop: true,
+      effect: { chain: 3, lock: 2 }, fx: 'pulse', color: '#7df9ff', desc: 'Молния перескакивает на трёх ближайших соперников и замораживает блоки.' },
+    { id: 'gravity', name: 'Гравиган «Якорь»', dmg: 12, range: 8, dir: 'both', charge: 11, acc: 0.9, shop: true,
+      effect: { slow: 3, pull: 2 }, fx: 'pulse', color: '#b388ff', desc: 'Гравитационный якорь гасит скорость цели и передаёт её стрелку.' },
+    { id: 'plasma', name: 'Плазмомёт «Сверхновая»', dmg: 30, range: 12, dir: 'front', charge: 15, acc: 0.86, shop: true,
+      effect: { pierce: true, burn: { dmg: 6, turns: 3 } }, fx: 'beam', color: '#ff4fd8', desc: 'Сгусток плазмы прожигает броню и поджигает мотоцикл.' }
+  );
+  const RARITY = {
+    common: { name: 'Обычное', color: '#a8b3c7', price: 60 },
+    rare: { name: 'Редкое', color: '#4f9dff', price: 115 },
+    epic: { name: 'Эпическое', color: '#b75cff', price: 195 },
+    legend: { name: 'Легендарное', color: '#ffb000', price: 310 }
+  };
+  const W_RARITY = { mg: 'common', shotgun: 'common', oil: 'common', chain: 'common', flame: 'common',
+    rocket: 'rare', emp: 'rare', harpoon: 'rare', mines: 'rare', grad: 'rare',
+    rail: 'epic', tesla: 'epic', gravity: 'epic', plasma: 'legend' };
+  WEAPONS.forEach(w => { w.rarity = W_RARITY[w.id]; w.price = RARITY[w.rarity].price; });
+
+  /* Экономика «Славы» ★ */
+  const ECON = {
+    prize: [60, 50, 42, 36, 31, 27, 24, 21, 18, 16, 14, 12, 10, 8, 6, 5], // призовые за место
+    fameHit: 2, fameCrash: 8, fameCombo: 2,                              // зрелищность в гонке
+    statMax: 20,
+    statCost: v => 20 + 4 * v,                                           // +1 к характеристике
+    wmods: {
+      cal: { name: 'Калибр', desc: '+12% урона', icon: '💥' },
+      mag: { name: 'Магазин', desc: '−1 к ёмкости заряда (быстрее стреляет)', icon: '🔋' },
+      aim: { name: 'Прицел', desc: '+4% точности', icon: '🎯' }
+    },
+    wmodCost: [40, 70, 105],                                             // уровни 1..3
+    crew: {
+      mech: { name: 'Механик', icon: '🔧', desc: 'Пит-стоп +8 прочности и ремкомплекты +15% за уровень; на 3-м уровне ремонт после аварии на ход быстрее' },
+      gun: { name: 'Оружейник', icon: '🎯', desc: 'Старт гонки с заряженным на 25% за уровень оружием' },
+      armor: { name: 'Бронетехник', icon: '🛡', desc: 'Старт гонки со щитом +8 за уровень' },
+      nitro: { name: 'Нитро-инженер', icon: '⚡', desc: 'Старт с +2 нитро и рывок +0,4 клетки за уровень' }
+    },
+    crewCost: [50, 90, 140],
+    sellBack: 0.5                                                         // продажа старой пушки
+  };
+  // Боевая версия оружия с учётом тюнинга
+  function makeWeapon(id, mods) {
+    const b = WEAPONS.find(w => w.id === id), m = mods || {};
+    return Object.assign({}, b, {
+      dmg: Math.round(b.dmg * (1 + 0.12 * (m.cal || 0))),
+      charge: Math.max(3, b.charge - (m.mag || 0)),
+      acc: Math.min(0.99, b.acc + 0.04 * (m.aim || 0)),
+      mods: { cal: m.cal || 0, mag: m.mag || 0, aim: m.aim || 0 }
+    });
+  }
+
   const RACERS = [
     { name: 'Бритва', color: '#ff3b3b' }, { name: 'Гадюка', color: '#2fdc74' },
     { name: 'Молот', color: '#ff9f1c' }, { name: 'Призрак', color: '#e0e7ff' },
@@ -136,5 +190,6 @@
     dmgMul: 1.7
   };
 
+  G.RARITY = RARITY; G.ECON = ECON; G.makeWeapon = makeWeapon;
   G.GEMS = GEMS; G.NOVA = NOVA; G.SPECIALS = SPECIALS; G.WEAPONS = WEAPONS; G.RACERS = RACERS; G.CFG = CFG;
 })(typeof window !== 'undefined' ? window : globalThis);
