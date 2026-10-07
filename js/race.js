@@ -166,13 +166,13 @@
       const grid = opts.grid || G.RACERS.map((_, i) => i);
       this.racers = G.RACERS.map((d, id) => {
         const ros = opts.roster && opts.roster[id];
-        const stats = ros ? Object.assign({}, ros.stats) : opts.stats ? opts.stats(id, this.rand) : rollStats(this.rand);
+        const stats = ros ? G.effectiveStats(ros) : opts.stats ? opts.stats(id, this.rand) : rollStats(this.rand);
         const slot = grid.indexOf(id);
         const r = {
           id, num: id + 1, name: d.name, color: d.color, stats, tm: this.mods,
           human: id === opts.human,
           weapon: ros ? G.makeWeapon(ros.weapon, ros.wmods) : opts.weapon ? opts.weapon(id) : pool[id],
-          crew: Object.assign({ mech: 0, gun: 0, armor: 0, nitro: 0 }, ros && ros.crew), fame: 0, showFame: 0, kills: 0,
+          crew: Object.assign({ mech: 0, gun: 0, armor: 0, nitro: 0 }, ros && ros.crew), fame: 0, showFame: 0, kills: 0, breaks: [],
           perks: (ros && ros.perks) || [], tier: ros && ros.tier,
           morale: ros && typeof ros.morale === 'number' ? ros.morale : 50, nerves: 0, face: ros && ros.face,
           board: new G.Board(this.rand),
@@ -224,6 +224,8 @@
     crash(t) {
       t.skip = CFG.crashSkip - (t.crew && t.crew.mech >= 3 ? 1 : 0); t.speed = 0; t.nitro = 0; t.shield = 0; t.burn = null; t.frac = 0;
       t.charge = Math.floor(t.charge / 2); t.crashes++;
+      // поломка узла: проявится со следующего этапа
+      if (CFG.breakOn && this.rand() < CFG.breakChance) t.breaks.push(['accel', 'top', 'handling'][Math.floor(this.rand() * 3)]);
     }
 
     applyGains(r, tally) {
@@ -536,5 +538,13 @@
     }
   }
 
+  // характеристики с учётом поломок и упадка духа (не ниже 1)
+  G.effectiveStats = ros => {
+    const s = Object.assign({}, ros.stats);
+    (ros.broken || []).forEach(b => { s[b.stat] -= b.amount; });
+    if (ros.despair) s[ros.despair] -= 1;
+    Object.keys(s).forEach(k => { s[k] = Math.max(1, s[k]); });
+    return s;
+  };
   G.Race = Race; G.RaceF = F; G.hasPerk = has; G.RaceAI = AI; G.CELL_FX = CELL_FX; G.mulberry32 = mulberry32; G.rollStats = rollStats;
 })(typeof window !== 'undefined' ? window : globalThis);

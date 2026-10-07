@@ -10,8 +10,11 @@
     ros.crew = Object.assign({ mech: 0, gun: 0, armor: 0, nitro: 0, psy: 0 }, ros.crew);
     if (typeof ros.morale !== 'number') ros.morale = 50;
     ros.perks = ros.perks || [];
+    ros.broken = ros.broken || [];
     return ros;
   }
+  const PART = { accel: 'двигатель', top: 'трансмиссия', handling: 'подвеска' };
+  const repairCost = ros => Math.round(G.CFG.repairCost * (1 - 0.25 * ((ros.crew && ros.crew.mech) || 0)));
   const weaponOf = ros => G.WEAPONS.find(w => w.id === ros.weapon);
   const sellValue = ros => Math.round(weaponOf(ros).price * E.sellBack);
 
@@ -31,6 +34,7 @@
       const l = ros.crew[k];
       if (l < 3) out.push({ type: 'crew', key: k, lvl: l, price: E.crewCost[k][l] });
     });
+    ros.broken.forEach((b, i) => out.push({ type: 'repair', key: i, stat: b.stat, amount: b.amount, price: repairCost(ros) }));
     const sell = sellValue(ros);
     G.WEAPONS.forEach(w => {
       if (w.id !== ros.weapon) out.push({ type: 'weapon', key: w.id, full: w.price, sell, price: Math.max(0, w.price - sell) });
@@ -44,9 +48,11 @@
     else if (opt.type === 'wmod') ros.wmods[opt.key]++;
     else if (opt.type === 'crew') ros.crew[opt.key]++;
     else if (opt.type === 'weapon') { ros.weapon = opt.key; ros.wmods = { cal: 0, mag: 0, aim: 0 }; }
+    else if (opt.type === 'repair') ros.broken.splice(opt.key, 1);
   }
 
   function label(opt) {
+    if (opt.type === 'repair') return `Ремонт: ${PART[opt.stat]} (${STAT_NAME[opt.stat]} +${opt.amount})`;
     if (opt.type === 'stat') return `${STAT_NAME[opt.key]} ${opt.lvl} → ${opt.lvl + 1}`;
     if (opt.type === 'wmod') return `${E.wmods[opt.key].name} оружия ур. ${opt.lvl + 1}`;
     if (opt.type === 'crew') return `${E.crew[opt.key].name} ур. ${opt.lvl + 1}`;
@@ -70,8 +76,10 @@
       let best = null, bs = -1;
       for (const o of can) {
         // ценность = измеренная сила апгрейда (в местах), у пушки — по редкости
-        let v = o.type === 'weapon' ? 0.3 * (RANK[G.WEAPONS.find(w => w.id === o.key).rarity] - curRank()) : E.value[o.type][o.key];
-        if (o.type === 'stat') v *= 1.25 - ros.stats[o.key] / 25; // слабые характеристики тянет подтянуть
+        let v = o.type === 'weapon' ? 0.3 * (RANK[G.WEAPONS.find(w => w.id === o.key).rarity] - curRank())
+          : o.type === 'repair' ? E.value.stat[o.stat] * o.amount * 1.2 : E.value[o.type][o.key];
+        if (o.type === 'stat') v *= 1.25 - ros.stats[o.key] / 25;
+        if (o.type === 'repair') v *= 1.25 - ros.stats[o.stat] / 25; // слабые характеристики тянет подтянуть
         if (o.type === 'wmod' || (o.type === 'crew' && o.key === 'gun')) v += 0.05;   // оружейные апы ещё и приносят славу за попадания
         const s = v / Math.max(15, o.price) * (0.6 + rand() * 0.8);
         if (s > bs) { bs = s; best = o; }
@@ -134,8 +142,25 @@
     ros.morale = Math.max(0, Math.min(100, Math.round(m)));
     return { before, after: ros.morale, delta: ros.morale - before, parts, rankShift };
   }
+  // После этапа: старение поломок, самопочинка механиком, новые поломки, упадок духа
+  function afterRaceDamage(ros, newBreaks, rand) {
+    const C = G.CFG, ev = [];
+    ensure(ros);
+    ros.broken = ros.broken.filter(b => {
+      b.left--;
+      if (b.left <= 0) { ev.push({ type: 'healed', stat: b.stat }); return false; }
+      if (ros.crew.mech && rand() < C.mechFixChance * ros.crew.mech) { ev.push({ type: 'mechfix', stat: b.stat }); return false; }
+      return true;
+    });
+    (newBreaks || []).forEach(stat => { ros.broken.push({ stat, amount: C.breakAmount, left: C.breakRaces }); ev.push({ type: 'broke', stat }); });
+    if (C.despairOn) {
+      if (!ros.despair && ros.morale <= C.despairAt) { ros.despair = ['accel', 'top', 'handling'][Math.floor(rand() * 3)]; ev.push({ type: 'despair', stat: ros.despair }); }
+      else if (ros.despair && ros.morale >= C.despairOff) { ev.push({ type: 'recovered', stat: ros.despair }); ros.despair = null; }
+    }
+    return ev;
+  }
   const statSum = ros => ros.stats.accel + ros.stats.top + ros.stats.handling;
 
-  G.Gen = { rollRoster, rollTier, statSum, moraleAfter };
+  G.Gen = { rollRoster, rollTier, statSum, moraleAfter, afterRaceDamage, PART, repairCost };
   G.Shop = { ensure, options, apply, label, aiSpend, sellValue, weaponOf, RANK, STAT_NAME };
 })(typeof window !== 'undefined' ? window : globalThis);
