@@ -1346,19 +1346,17 @@
       const find = (type, key) => opts.find(o => o.type === type && o.key === key);
       const buyBtn = (o, txt) => !o ? '<button class="btn buy" disabled>МАКС.</button>' :
         `<button class="btn buy ${o.price <= fame ? '' : 'poor'}" data-type="${o.type}" data-key="${o.key}" ${o.price <= fame ? '' : 'disabled'}>${txt || 'Купить'} <b>★${o.price}</b></button>`;
-      const eff = v => `<span class="g-eff" title="Измерено симуляцией: насколько в среднем поднимается место в гонке за 1 уровень">≈ +${String(v.toFixed(2)).replace('.', ',')} места</span>`;
       const pips = l => `<span class="lv">${[0, 1, 2].map(i => `<i class="${i < l ? 'on' : ''}"></i>`).join('')}</span>`;
       let body = '';
       if (Garage.tab === 'bike') {
-        const eff2 = k => eff(window.ECON.value.stat[k]);
         const ST = [['accel', 'Разгон', 'c-acc', 's-acc', `+${String(CFG.accPer).replace('.', ',')} к приросту скорости за ход`], ['top', 'Макс. скорость', 'c-top', 's-top', `+${fmt(CFG.vmaxPer)} клетки к потолку и сильнее нитро`], ['handling', 'Маневренность', 'c-han', 's-han', `+${fmt(CFG.cornerPer)} к пределу в поворотах и +${fmt(CFG.dodgePer * 100)}% уворота`]];
         body = `<p class="g-hint">Каждая покупка добавляет +1 к характеристике (максимум 20). Цена растёт с уровнем.</p>` + ST.map(([k, n, c, sc, eff]) =>
-          `<div class="g-item"><div class="g-main"><b class="${c}">${n}</b><small>${eff} · ${eff2(k)}</small>${statBar('', ros.stats[k], '', sc).replace('<div class="stat-l"><span></span></div>', '')}</div>${buyBtn(find('stat', k), '+1')}</div>`).join('');
+          `<div class="g-item"><div class="g-main"><b class="${c}">${n}</b><small>${eff}</small>${statBar('', ros.stats[k], '', sc).replace('<div class="stat-l"><span></span></div>', '')}</div>${buyBtn(find('stat', k), '+1')}</div>`).join('');
       } else if (Garage.tab === 'weapon') {
         const R = window.RARITY;
         body = `<div class="g-cur" style="--wc:${w.color}">${Art.weaponIcon(w, 46)}<div><small>Текущее оружие · <span style="color:${R[w.rarity].color}">${R[w.rarity].name}</span></small><b>${w.name}</b><small>${w.desc}</small></div><div class="g-sell">продажа: ★${window.Shop.sellValue(ros)}</div></div>
           <h4>Тюнинг текущего оружия</h4>` +
-          Object.entries(window.ECON.wmods).map(([k, m]) => `<div class="g-item"><div class="g-main"><b>${m.icon} ${m.name} ${pips(ros.wmods[k])}</b><small>${m.desc} · ${eff(window.ECON.value.wmod[k])} + слава за попадания</small></div>${buyBtn(find('wmod', k))}</div>`).join('') +
+          Object.entries(window.ECON.wmods).map(([k, m]) => `<div class="g-item"><div class="g-main"><b>${m.icon} ${m.name} ${pips(ros.wmods[k])}</b><small>${m.desc} · оружейные апы приносят больше славы за попадания</small></div>${buyBtn(find('wmod', k))}</div>`).join('') +
           `<h4>Оружейный рынок <small>тюнинг при смене пушки сбрасывается, старая продаётся за полцены</small></h4><div class="g-shop">` +
           WEAPONS.slice().sort((a, b) => a.price - b.price).map(x => {
             const o = find('weapon', x.id), r = R[x.rarity];
@@ -1369,8 +1367,8 @@
               ${x.id === ros.weapon ? '<button class="btn buy" disabled>Установлено</button>' : buyBtn(o, `★${x.price} − ★${o.sell} =`).replace(/<b>★\d+<\/b>/, `<b>★${o.price}</b>`)}</div>`;
           }).join('') + '</div>';
       } else {
-        body = `<p class="g-hint">Специалисты работают на вас каждую гонку. Три уровня у каждого. Цена каждого — по его измеренной силе.</p>` +
-          Object.entries(window.ECON.crew).map(([k, c]) => `<div class="g-item crew"><div class="g-ic">${c.icon}</div><div class="g-main"><b>${c.name} ${pips(ros.crew[k])}</b><small>${c.desc} · ${eff(window.ECON.value.crew[k])}</small></div>${buyBtn(find('crew', k), 'Нанять')}</div>`).join('');
+        body = `<p class="g-hint">Специалисты работают на вас каждую гонку. Три уровня у каждого.</p>` +
+          Object.entries(window.ECON.crew).map(([k, c]) => `<div class="g-item crew"><div class="g-ic">${c.icon}</div><div class="g-main"><b>${c.name} ${pips(ros.crew[k])}</b><small>${c.desc}</small></div>${buyBtn(find('crew', k), 'Нанять')}</div>`).join('');
       }
       const news = (d.news || []).filter(n => n.id !== id);
       $('#garageBody').innerHTML = `
