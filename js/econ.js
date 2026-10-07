@@ -2,7 +2,7 @@
 (function (G) {
   'use strict';
   const E = G.ECON;
-  const RANK = { common: 0, rare: 1, epic: 2, legend: 3 };
+  const RANK = { common: 0, rare: 1, epic: 2, legend: 3, relic: 4 };
   const STAT_NAME = { accel: 'Разгон', top: 'Макс. скорость', handling: 'Маневренность' };
 
   function ensure(ros) {
@@ -11,6 +11,7 @@
     if (typeof ros.morale !== 'number') ros.morale = 50;
     ros.perks = ros.perks || [];
     ros.broken = ros.broken || [];
+    if (ros.perks.includes('paladin')) ros.weapon = 'holy'; // реликвия паладина навсегда
     return ros;
   }
   const PART = { accel: 'двигатель', top: 'трансмиссия', handling: 'подвеска' };
@@ -42,8 +43,8 @@
     });
     ros.broken.forEach((b, i) => out.push({ type: 'repair', key: i, stat: b.stat, amount: b.amount, price: repairCost(ros, b.stat) }));
     const sell = sellValue(ros);
-    G.WEAPONS.forEach(w => {
-      if (w.id !== ros.weapon) out.push({ type: 'weapon', key: w.id, full: w.price, sell, price: Math.max(0, w.price - sell) });
+    if (!ros.perks.includes('paladin')) G.WEAPONS.forEach(w => {
+      if (w.id !== ros.weapon && !w.relic) out.push({ type: 'weapon', key: w.id, full: w.price, sell, price: Math.max(0, w.price - sell) });
     });
     return out;
   }
@@ -69,7 +70,7 @@
   // Траты ИИ. Каждый вариант оценивается как «сила апгрейда / цена» (сила измерена симуляцией).
   // Лучший вариант выбирается из ВСЕХ, а не только из доступных: если он пока не по карману,
   // но уже накоплена заметная часть, ИИ копит. Иначе дешёвые апы всегда перебивали бы дорогую команду.
-  const W_POWER = { common: 0, rare: 0.45, epic: 1.05, legend: 1.75 };
+  const W_POWER = { common: 0, rare: 0.45, epic: 1.05, legend: 1.75, relic: 0 };
   function aiValue(ros, o) {
     let v;
     if (o.type === 'weapon') v = W_POWER[G.WEAPONS.find(w => w.id === o.key).rarity] - W_POWER[weaponOf(ros).rarity]; // мест к обычной пушке, sim/weapons.js
@@ -117,7 +118,7 @@
     const x = rand();
     return x < G.TIERS.elite.chance ? 'elite' : x < G.TIERS.elite.chance + G.TIERS.pro.chance ? 'pro' : 'rookie';
   }
-  const START_COMP = { common: 0, rare: 1, epic: 3, legend: 5 }; // ≈ 0,35 места за очко (sim/weapons.js)
+  const START_COMP = { common: 0, rare: 1, epic: 3, legend: 5, relic: 0 }; // ≈ 0,35 места за очко (sim/weapons.js)
   function rollRoster(rand) {
     const base = G.WEAPONS.filter(w => !w.shop).map(w => w.id), ws = [];
     while (ws.length < 16) {
@@ -129,11 +130,12 @@
     const roster = G.RACERS.map((_, i) => {
       const tier = rollTier(rand), [lo, hi] = G.TIERS[tier].sum;
       // стартовая пушка редкого/эпического класса сильнее обычной — компенсируем очками характеристик
-      const total = lo + Math.floor(rand() * (hi - lo + 1)) - START_COMP[G.WEAPONS.find(w => w.id === ws[i]).rarity];
       const perks = rand() < G.PERK_CHANCE ? [keys[Math.floor(rand() * keys.length)]] : [];
+      const weapon = perks.includes('paladin') ? 'holy' : ws[i];
+      const total = lo + Math.floor(rand() * (hi - lo + 1)) - START_COMP[G.WEAPONS.find(w => w.id === weapon).rarity];
       const morale = Math.round(G.CFG.moraleStart[tier] + (rand() * 20 - 10));
       const face = G.Faces ? G.Faces.newSeed(rand) : 0;
-      return ensure({ tier, stats: G.rollStats(rand, total), weapon: ws[i], perks, morale, face });
+      return { tier, stats: G.rollStats(rand, total), weapon, perks, morale, face };
     });
     // один (и только один) из обладателей перка получает второй, другой
     const holders = roster.filter(r => r.perks.length);
@@ -142,6 +144,14 @@
       const rest = keys.filter(k => k !== lucky.perks[0]);
       lucky.perks.push(rest[Math.floor(rand() * rest.length)]);
     }
+    // паладин получает реликвию вместо стартовой пушки: компенсация за редкую пушку возвращается
+    roster.forEach(r => {
+      if (!r.perks.includes('paladin') || r.weapon === 'holy') return;
+      let back = START_COMP[G.WEAPONS.find(w => w.id === r.weapon).rarity];
+      while (back-- > 0) { const k = ['accel', 'top', 'handling'].sort((a, b) => r.stats[a] - r.stats[b])[0]; r.stats[k]++; }
+      r.weapon = 'holy';
+    });
+    roster.forEach(ensure);
     return roster;
   }
   // Мораль после гонки: результат, затем плавное возвращение к 50 (психолог меняет скорость)

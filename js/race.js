@@ -171,7 +171,8 @@
         const r = {
           id, num: id + 1, name: d.name, color: d.color, stats, tm: this.mods,
           human: id === opts.human,
-          weapon: ros ? G.makeWeapon(ros.weapon, ros.wmods) : opts.weapon ? opts.weapon(id) : pool[id],
+          weapon: ros && ros.perks && ros.perks.includes('paladin') ? G.makeWeapon('holy', ros.wmods)
+            : ros ? G.makeWeapon(ros.weapon, ros.wmods) : opts.weapon ? opts.weapon(id) : pool[id],
           crew: Object.assign({ mech: 0, gun: 0, armor: 0, nitro: 0 }, ros && ros.crew), fame: 0, showFame: 0, kills: 0, breaks: [],
           perks: (ros && ros.perks) || [], tier: ros && ros.tier, baseStats: ros ? Object.assign({}, ros.stats) : null, broken: (ros && ros.broken) || [],
           morale: ros && typeof ros.morale === 'number' ? ros.morale : 50, nerves: 0, face: ros && ros.face,
@@ -192,6 +193,50 @@
         r.charge = Math.min(r.weapon.charge, Math.floor(r.weapon.charge * 0.4 * r.crew.gun));
         r.nitro = Math.min(CFG.nitroMax, 3 * r.crew.nitro);
       });
+      // некромант поднимает нежить: по мертвецу в разных секторах круга (круг делится на 3 сектора)
+      this.undead = [];
+      const N = this.track.N, taken = new Set();
+      this.racers.filter(r => has(r, 'necro')).forEach(r => {
+        const sec = [0, 1, 2];
+        for (let i = sec.length - 1; i > 0; i--) { const j = Math.floor(this.rand() * (i + 1)); [sec[i], sec[j]] = [sec[j], sec[i]]; }
+        sec.slice(0, CFG.undeadCount).forEach(sc => {
+          const a = Math.max(3, Math.floor(sc * N / 3)), b = Math.floor((sc + 1) * N / 3); // первые клетки после старта свободны
+          for (let t = 0; t < 30; t++) {
+            const cell = a + Math.floor(this.rand() * Math.max(1, b - a));
+            if (taken.has(cell)) continue;
+            taken.add(cell);
+            this.undead.push({ id: this.undead.length, cell, owner: r.id, alive: true });
+            break;
+          }
+        });
+      });
+    }
+
+    // удар нежити по гонщику, закончившему ход на её клетке (паладин изгоняет)
+    undeadCheck(r) {
+      if (!this.undead.length || r.skip || r.finished || r.pos <= 0 || r.pos >= this.track.total) return null;
+      const N = this.track.N, cell = ((Math.floor(r.pos) % N) + N) % N;
+      const u = this.undead.find(x => x.alive && x.cell === cell && x.owner !== r.id);
+      if (!u) return null;
+      const owner = this.racers[u.owner];
+      if (has(r, 'paladin')) {
+        u.alive = false; r.fame += CFG.banishFame;
+        this.fx.push({ id: r.id, text: '⚜ НЕЖИТЬ ИЗГНАНА', color: '#ffe9a0' });
+        return { u, owner, banished: true };
+      }
+      let acc = CFG.undeadAcc * (this.mods.accMul || 1);
+      if (this.track.cell(r.pos).tunnel) acc *= 0.6;
+      const chance = acc * (1 - F.dodge(r));
+      const hit = this.rand() < chance;
+      const res = { u, owner, hit, chance, dmg: 0, absorbed: 0, crashed: false };
+      if (!hit) return res;
+      const d = this.applyDamage(r, Math.round(CFG.undeadDmg * CFG.dmgMul), false);
+      r.lastAttacker = owner.id;
+      res.dmg = d.real; res.absorbed = d.absorbed; res.crashed = d.crashed; res.lucky = d.lucky;
+      owner.dmgDealt += d.real;
+      if (d.crashed) { owner.kills++; owner.fame += G.ECON.fameCrash; }
+      if (has(r, 'avenger') && !r.skip) { r.charge = Math.min(r.weapon.charge, r.charge + 3); r.revengeOn = owner.id; }
+      return res;
     }
 
     get current() { return this.racers[this.order[this.turn]]; }
@@ -282,7 +327,9 @@
         const revenge = has(r, 'avenger') && r.revengeOn === t.id;
         const hunt = has(r, 'hunter') && this.standings().indexOf(t) < 3;
         if (revenge) r.revengeOn = -1;
-        const d = this.applyDamage(t, Math.round(w.dmg * CFG.dmgMul * (has(r, 'aggro') ? 1.2 : 1) * (revenge ? 1.5 : 1) * (hunt ? 1.3 : 1)), w.effect.pierce);
+        const smite = w.effect.smite && has(t, 'necro') ? w.effect.smite : 1;
+        const d = this.applyDamage(t, Math.round(w.dmg * CFG.dmgMul * (has(r, 'aggro') ? 1.2 : 1) * (revenge ? 1.5 : 1) * (hunt ? 1.3 : 1) * smite), w.effect.pierce);
+        if (smite > 1) res.effects.push(`кара некроманту ×${smite}`);
         if (hunt) res.effects.push('охота на лидера ×1,3');
         if (revenge) res.effects.push('месть ×1,5');
         res.dmg = d.real; res.absorbed = d.absorbed; res.crashed = d.crashed; res.lucky = d.lucky;
@@ -303,6 +350,8 @@
         }
         // эффекты в пользу стрелка (у дорогих пушек): форсаж и перехват нитро
         if (e.rush) { r.speed = Math.min(F.vmax(r) + 1, r.speed + e.rush); res.effects.push(`форсаж +${e.rush}`); }
+        if (e.heal) { r.hp = Math.min(CFG.MAX_HP, r.hp + e.heal); res.effects.push(`паладин +${e.heal} прочности`); }
+        if (e.aegis) { r.shield = Math.min(CFG.shieldMax, r.shield + e.aegis); res.effects.push(`щит +${e.aegis}`); }
         if (e.nitro) { r.nitro = Math.min(CFG.nitroMax, r.nitro + e.nitro); res.effects.push(`+${e.nitro} нитро стрелку`); }
         if (e.knock && !heavy) { res.knockFrom = t.pos; t.pos -= e.knock; res.knockTo = t.pos; res.effects.push(`отброшен на ${e.knock}`); }
         if (e.strip && !cold) { t.grip = 0; res.effects.push('сцепление потеряно'); }
@@ -400,13 +449,14 @@
           this.fx.push({ id: r.id, text: `🐏 ТАРАН! ${t.name} −${dt.real}`, color: '#ff9a3c' });
         }
       }
+      const undead = this.undeadCheck(r);
       let finished = false;
       if (r.pos >= tr.total) {
         r.finished = true; r.place = this.finishOrder.length + 1; r.finishRound = this.round;
         this.finishOrder.push(r.id); finished = true;
         if (!this.firstFinishRound) this.firstFinishRound = this.round;
       }
-      return { from, to, cells, boost, brake, sev, skid, cellFx, picked, nerve, crowd, ram, finished };
+      return { from, to, cells, boost, brake, sev, skid, cellFx, picked, nerve, crowd, ram, undead, finished };
     }
 
     // последствия «дрогнул» / «нервный срыв» (вариант задаётся CFG.nerveMode)

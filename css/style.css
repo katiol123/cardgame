@@ -144,6 +144,7 @@ button { font: inherit; color: inherit; }
 .lg { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 .lg.turn { background: rgba(255,190,40,.4); border: 1px solid #ffc83c; }
 .lg.hair { background: rgba(255,60,60,.4); border: 1px solid #ff5050; }
+.lg.undead-lg { width: auto; height: auto; font-size: 11px; font-style: normal; }
 .banner { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
 .banner span {
   font: 42px var(--head); color: #fff; opacity: 0; letter-spacing: 2px; text-align: center; padding: 0 20px;
@@ -823,3 +824,17 @@ svg.face .fx-tear { animation: fxTear 2s ease-in infinite; }
 .ds-stat small .up { color: #7af0a8; } .ds-stat small .down { color: #ff7a8a; }
 .brk-item { border-color: rgba(255,122,0,.45); background: rgba(255,122,0,.06); }
 .g-main b small { color: #ff7a8a; font-weight: 600; margin-left: 4px; }
+
+/* нежить некроманта */
+.undead { pointer-events: auto; }
+.undead .ud-body { animation: ud-float 2.4s ease-in-out infinite; }
+.undead .ud-glow { fill: rgba(90, 255, 140, .18); filter: blur(4px); }
+.undead .ud-ghost { fill: rgba(200, 255, 215, .85); stroke-width: 2; filter: drop-shadow(0 0 5px #6dff9a); }
+.undead .ud-eye { fill: #0b1f12; }
+.undead .ud-mouth { stroke: #0b1f12; stroke-width: 1.6; stroke-linecap: round; }
+.undead .ud-tether { stroke: rgba(125, 255, 154, .35); stroke-width: 2; stroke-dasharray: 2 4; }
+.undead.strike .ud-ghost { animation: ud-strike .5s ease-out; }
+.undead.gone { opacity: 0; transition: opacity .8s; pointer-events: none; }
+@keyframes ud-float { 50% { transform: translateY(-3px); } }
+@keyframes ud-strike { 40% { fill: #7dff9a; filter: drop-shadow(0 0 14px #7dff9a); } }
+.g-note { color: #ffe9a0; background: rgba(255,233,160,.07); border: 1px solid rgba(255,233,160,.25); border-radius: 10px; padding: 10px 14px; font-size: 13px; }

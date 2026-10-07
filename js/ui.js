@@ -133,6 +133,29 @@
       TV.relayout(true);
       if (!TV.raf) TV.raf = requestAnimationFrame(TV.frame);
     },
+    // нежить некроманта: призрачные черепа у обочины
+    undead(race) {
+      const svg = $('#trackSvg'), old = svg.querySelector('#undead');
+      if (old) old.remove();
+      if (!race.undead || !race.undead.length) return;
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('id', 'undead');
+      g.innerHTML = race.undead.map(u => {
+        const p = race.track.pointAt(u.cell), o = race.racers[u.owner];
+        const nx = -Math.sin(p.a), ny = Math.cos(p.a), x = p.x + nx * 30, y = p.y + ny * 30;
+        return `<g class="undead${u.alive ? '' : ' gone'}" data-u="${u.id}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})">
+          <title>Нежить некроманта ${o.name} — клетка ${u.cell}: бьёт тех, кто закончит здесь ход</title>
+          <line x1="0" y1="0" x2="${(-nx * 30).toFixed(1)}" y2="${(-ny * 30).toFixed(1)}" class="ud-tether"/>
+          <g class="ud-body"><circle r="15" class="ud-glow"/>
+          <path class="ud-ghost" d="M-10 12 L-10 -2 A10 11 0 0 1 10 -2 L10 12 L6.5 8.5 L3.3 12 L0 8.5 L-3.3 12 L-6.5 8.5 Z" stroke="${o.color}"/>
+          <circle cx="-4" cy="-2" r="2.6" class="ud-eye"/><circle cx="4" cy="-2" r="2.6" class="ud-eye"/>
+          <path d="M-3 5 h6" class="ud-mouth"/></g></g>`;
+      }).join('');
+      svg.insertBefore(g, svg.querySelector('#tokens'));
+    },
+    undeadSync(race) {
+      (race.undead || []).forEach(u => { const el = document.querySelector(`#undead [data-u="${u.id}"]`); if (el) el.classList.toggle('gone', !u.alive); });
+    },
     scenery(track, th) {
       let s = '';
       const rnd = window.mulberry32(track.N * 31 + track.def.points.length);
@@ -609,6 +632,9 @@
       if (w.effect.knock) eff.push(`отброс на ${w.effect.knock}`);
       if (w.effect.strip) eff.push('срыв сцепления');
       if (w.effect.rush) eff.push(`форсаж стрелку +${w.effect.rush}`);
+      if (w.effect.heal) eff.push(`лечит себя +${w.effect.heal}`);
+      if (w.effect.aegis) eff.push(`щит себе +${w.effect.aegis}`);
+      if (w.effect.smite) eff.push(`по некромантам ×${w.effect.smite}`);
       if (w.effect.nitro) eff.push(`+${w.effect.nitro} нитро стрелку`);
       $('#racerCard').innerHTML = `
         <div class="rc-id" style="--rc:${r.color}">
@@ -924,6 +950,27 @@
       if (mv.ram.crashed) FXS.crash(mv.ram.target.id);
       if (mv.ram.selfCrashed) FXS.crash(r.id);
     }
+    if (mv.undead) {
+      const u = mv.undead, el = document.querySelector(`#undead [data-u="${u.u.id}"]`);
+      if (el) { el.classList.remove('strike'); void el.getBBox(); el.classList.add('strike'); }
+      if (u.banished) {
+        trackFx.flash(p1.x, p1.y, '#ffe9a0', 60, 0.5); trackFx.ring(p1.x, p1.y, '#ffe9a0', 46, { life: 0.7 });
+        trackFx.burst(p1.x, p1.y, '#fff6d0', 26, { speed: 160, life: 0.8, g: -60 });
+        trackFx.text(p1.x, p1.y - 30, '⚜ НЕЖИТЬ ИЗГНАНА', '#ffe9a0', { size: 15 });
+        TV.undeadSync(race);
+        log(`⚜ ${nm(r)} изгоняет нежить некроманта ${nm(u.owner)} (+★${CFG.banishFame})`, 'good');
+      } else {
+        trackFx.beam && trackFx.beam(p1.x + 20, p1.y - 30, p1.x, p1.y, '#7dff9a', { life: 0.35, width: 4 });
+        if (u.hit) {
+          trackFx.flash(p1.x, p1.y, '#7dff9a', 44, 0.35); trackFx.burst(p1.x, p1.y, '#7dff9a', 20, { speed: 200, life: 0.6, g: 0 });
+          trackFx.text(p1.x, p1.y - 28, `💀 НЕЖИТЬ −${u.dmg}`, '#7dff9a', { size: 15 });
+          TV.tokens[r.id].shake = 10; Stand.flash(r.id, 'hurt');
+          if (u.crashed) FXS.crash(r.id);
+          if (r.id === state.selected) Card.update(r);
+        } else trackFx.text(p1.x, p1.y - 28, '💀 мимо', '#a9ffbf', { size: 12, life: 0.9 });
+        log(u.hit ? `💀 Нежить ${nm(u.owner)} бьёт ${nm(r)}: <span class="dmg">−${u.dmg}</span>${u.absorbed ? ` <span class="abs">(щит ${u.absorbed})</span>` : ''}${u.crashed ? ' · <b class="bad">АВАРИЯ!</b>' : ''}` : `💀 Нежить ${nm(u.owner)} промахивается по ${nm(r)}`, u.crashed ? 'bad' : 'atk');
+      }
+    }
     if (mv.cellFx) {
       const k = mv.cellFx.kind;
       trackFx.ring(p1.x, p1.y, Art.CELL_COLOR[k], 30, { life: 0.5 });
@@ -1141,6 +1188,7 @@
     const race = state.race;
     race.racers.forEach(r => { const t = TV.tokens[r.id]; if (t.hop) { const f = t.hop.resolve; t.hop = null; f(); } t.pos = r.pos; });
     TV.relayout(true);
+    TV.undeadSync(race);
     state.acting = -1;
     selectRacer(state.selected);
     header();
@@ -1176,6 +1224,7 @@
     state.rain = Champ.weather();
     state.race = new window.Race({ track: state.track, roster: d.roster, human: d.human, grid: Champ.grid(), mods: { rain: state.rain } });
     TV.build(state.track, state.race.racers);
+    TV.undead(state.race);
     Stand.build(state.race);
     $('#log').innerHTML = '';
     selectRacer(d.human >= 0 ? d.human : state.race.order[0]);
@@ -1423,18 +1472,19 @@
           `<div class="g-item"><div class="g-main"><b class="${c}">${n}</b><small>${eff}</small>${statBar('', ros.stats[k], '', sc, brokenOf(ros, k)).replace('<div class="stat-l"><span></span></div>', '')}</div>${buyBtn(find('stat', k), '+1')}</div>`).join('');
       } else if (Garage.tab === 'weapon') {
         const R = window.RARITY;
-        body = `<div class="g-cur" style="--wc:${w.color}">${Art.weaponIcon(w, 46)}<div><small>Текущее оружие · <span style="color:${R[w.rarity].color}">${R[w.rarity].name}</span></small><b>${w.name}</b><small>${w.desc}</small></div><div class="g-sell">продажа: ★${window.Shop.sellValue(ros)}</div></div>
+        body = `<div class="g-cur" style="--wc:${w.color}">${Art.weaponIcon(w, 46)}<div><small>Текущее оружие · <span style="color:${R[w.rarity].color}">${R[w.rarity].name}</span></small><b>${w.name}</b><small>${w.desc}</small></div>${w.relic ? '<div class="g-sell">⚜ навсегда</div>' : `<div class="g-sell">продажа: ★${window.Shop.sellValue(ros)}</div>`}</div>
           <h4>Тюнинг текущего оружия</h4>` +
           Object.entries(window.ECON.wmods).map(([k, m]) => `<div class="g-item"><div class="g-main"><b><span class="g-nm">${m.icon} ${m.name}</span>${pips(ros.wmods[k])}</b><small>${m.desc} · оружейные апы приносят больше славы за попадания</small></div>${buyBtn(find('wmod', k))}</div>`).join('') +
+          (ros.perks.includes('paladin') ? '<h4>Оружейный рынок</h4><p class="g-note">⚜ Паладин не расстаётся с реликвией: «Молот Света» нельзя продать или сменить. Тюнинг — пожалуйста.</p>' :
           `<h4>Оружейный рынок <small>тюнинг при смене пушки сбрасывается, старая продаётся за полцены</small></h4><div class="g-shop">` +
-          WEAPONS.slice().sort((a, b) => a.price - b.price).map(x => {
+          WEAPONS.filter(x => !x.relic).sort((a, b) => a.price - b.price).map(x => {
             const o = find('weapon', x.id), r = R[x.rarity];
             return `<div class="g-w ${x.id === ros.weapon ? 'own' : ''}" style="--rr:${r.color};--wc:${x.color}">
               <div class="g-w-h">${Art.weaponIcon(x, 34)}<div><b>${x.name}</b><small style="color:${r.color}">${r.name}${x.shop ? ' · только в гараже' : ''}</small></div></div>
               <div class="g-w-s"><span>урон ${Math.round(x.dmg * CFG.dmgMul)}</span><span>дальн. ${x.range} ${DIR[x.dir]}</span><span>заряд ${x.charge}</span><span>точн. ${Math.round(x.acc * 100)}%</span></div>
               <small class="g-w-d">${x.desc}</small>
-              ${x.id === ros.weapon ? '<button class="btn buy" disabled>Установлено</button>' : buyBtn(o, `★${x.price} − ★${o.sell} =`).replace(/<b>★\d+<\/b>/, `<b>★${o.price}</b>`)}</div>`;
-          }).join('') + '</div>';
+              ${x.id === ros.weapon ? '<button class="btn buy" disabled>Установлено</button>' : !o ? '<button class="btn buy" disabled>—</button>' : buyBtn(o, `★${x.price} − ★${o.sell} =`).replace(/<b>★\d+<\/b>/, `<b>★${o.price}</b>`)}</div>`;
+          }).join('') + '</div>');
       } else {
         body = `<p class="g-hint">Специалисты работают на вас каждую гонку. Три уровня у каждого.</p>` +
           Object.entries(window.ECON.crew).map(([k, c]) => `<div class="g-item crew"><div class="g-ic">${c.icon}</div><div class="g-main"><b><span class="g-nm">${c.name}</span>${pips(ros.crew[k])}</b><small>${c.desc}</small></div>${buyBtn(find('crew', k), 'Нанять')}</div>`).join('');
@@ -1614,6 +1664,9 @@
       if (w.effect.knock) effects.push(`отброс ${w.effect.knock}`);
       if (w.effect.strip) effects.push('срыв сцепления');
       if (w.effect.rush) effects.push(`форсаж +${w.effect.rush}`);
+      if (w.effect.heal) effects.push(`лечит себя +${w.effect.heal}`);
+      if (w.effect.aegis) effects.push(`щит себе +${w.effect.aegis}`);
+      if (w.effect.smite) effects.push(`по некромантам ×${w.effect.smite}`);
       if (w.effect.nitro) effects.push(`+${w.effect.nitro} нитро`);
       const pips = l => `<span class="lv">${[0, 1, 2].map(i => `<i class="${i < l ? 'on' : ''}"></i>`).join('')}</span>`;
       $('#dossierBody').innerHTML = `
@@ -1698,7 +1751,8 @@
     const kinds = state.track ? [...new Set(state.track.cells.map(c => c.kind))].filter(k => k !== 'plain') : Object.keys(CELL_FX);
     const hz = state.track && state.track.def.hazardName;
     $('#trackLegend').innerHTML = `<span><i class="lg lapb">2</i>номер круга</span><span><i class="lg dim"></i>на другом круге, чем выбранный</span><span><i class="lg turn"></i>поворот</span><span><i class="lg hair"></i>крутой поворот</span>` +
-      kinds.map(k => `<span><svg viewBox="-12 -12 24 24" width="16" height="16"><circle r="11" fill="${Art.CELL_COLOR[k]}"/>${Art.CELL_ICON[k]}</svg>${k === 'hazard' && hz ? hz : CELL_FX[k].name}</span>`).join('');
+      kinds.map(k => `<span><svg viewBox="-12 -12 24 24" width="16" height="16"><circle r="11" fill="${Art.CELL_COLOR[k]}"/>${Art.CELL_ICON[k]}</svg>${k === 'hazard' && hz ? hz : CELL_FX[k].name}</span>`).join('') +
+      (state.race && state.race.undead && state.race.undead.length ? '<span><i class="lg undead-lg">💀</i>нежить некроманта: бьёт закончивших ход рядом</span>' : '');
   }
 
   // =====================================================================
