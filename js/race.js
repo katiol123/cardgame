@@ -301,6 +301,9 @@
           t.speed -= st; r.speed = Math.min(F.vmax(r) + 1, r.speed + st);
           res.effects.push(`кража скорости ${st.toFixed(1)}`);
         }
+        // эффекты в пользу стрелка (у дорогих пушек): форсаж и перехват нитро
+        if (e.rush) { r.speed = Math.min(F.vmax(r) + 1, r.speed + e.rush); res.effects.push(`форсаж +${e.rush}`); }
+        if (e.nitro) { r.nitro = Math.min(CFG.nitroMax, r.nitro + e.nitro); res.effects.push(`+${e.nitro} нитро стрелку`); }
         if (e.knock && !heavy) { res.knockFrom = t.pos; t.pos -= e.knock; res.knockTo = t.pos; res.effects.push(`отброшен на ${e.knock}`); }
         if (e.strip && !cold) { t.grip = 0; res.effects.push('сцепление потеряно'); }
         return res;

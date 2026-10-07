@@ -69,9 +69,10 @@
   // Траты ИИ. Каждый вариант оценивается как «сила апгрейда / цена» (сила измерена симуляцией).
   // Лучший вариант выбирается из ВСЕХ, а не только из доступных: если он пока не по карману,
   // но уже накоплена заметная часть, ИИ копит. Иначе дешёвые апы всегда перебивали бы дорогую команду.
+  const W_POWER = { common: 0, rare: 0.45, epic: 1.05, legend: 1.75 };
   function aiValue(ros, o) {
     let v;
-    if (o.type === 'weapon') v = 0.12 * (RANK[G.WEAPONS.find(w => w.id === o.key).rarity] - RANK[weaponOf(ros).rarity]); // sim/weapons.js: редкость почти не решает
+    if (o.type === 'weapon') v = W_POWER[G.WEAPONS.find(w => w.id === o.key).rarity] - W_POWER[weaponOf(ros).rarity]; // мест к обычной пушке, sim/weapons.js
     else if (o.type === 'repair') v = E.value.stat[o.stat] * (o.amount * 1.5 + G.CFG.sponsorLoss * 4); // ремонт спасает и от постоянной потери
     else v = E.value[o.type][o.key];
     if (o.type === 'stat') v *= 1.25 - ros.stats[o.key] / 25;
@@ -116,6 +117,7 @@
     const x = rand();
     return x < G.TIERS.elite.chance ? 'elite' : x < G.TIERS.elite.chance + G.TIERS.pro.chance ? 'pro' : 'rookie';
   }
+  const START_COMP = { common: 0, rare: 1, epic: 3, legend: 5 }; // ≈ 0,35 места за очко (sim/weapons.js)
   function rollRoster(rand) {
     const base = G.WEAPONS.filter(w => !w.shop).map(w => w.id), ws = [];
     while (ws.length < 16) {
@@ -126,7 +128,8 @@
     const keys = Object.keys(G.PERKS);
     const roster = G.RACERS.map((_, i) => {
       const tier = rollTier(rand), [lo, hi] = G.TIERS[tier].sum;
-      const total = lo + Math.floor(rand() * (hi - lo + 1));
+      // стартовая пушка редкого/эпического класса сильнее обычной — компенсируем очками характеристик
+      const total = lo + Math.floor(rand() * (hi - lo + 1)) - START_COMP[G.WEAPONS.find(w => w.id === ws[i]).rarity];
       const perks = rand() < G.PERK_CHANCE ? [keys[Math.floor(rand() * keys.length)]] : [];
       const morale = Math.round(G.CFG.moraleStart[tier] + (rand() * 20 - 10));
       const face = G.Faces ? G.Faces.newSeed(rand) : 0;

@@ -608,6 +608,8 @@
       if (w.effect.pierce) eff.push('пробивает щит');
       if (w.effect.knock) eff.push(`отброс на ${w.effect.knock}`);
       if (w.effect.strip) eff.push('срыв сцепления');
+      if (w.effect.rush) eff.push(`форсаж стрелку +${w.effect.rush}`);
+      if (w.effect.nitro) eff.push(`+${w.effect.nitro} нитро стрелку`);
       $('#racerCard').innerHTML = `
         <div class="rc-id" style="--rc:${r.color}">
           <div class="rc-ava">${faceR(r, 84)}</div>
@@ -1611,6 +1613,8 @@
       if (w.effect.pierce) effects.push('пробивает щит');
       if (w.effect.knock) effects.push(`отброс ${w.effect.knock}`);
       if (w.effect.strip) effects.push('срыв сцепления');
+      if (w.effect.rush) effects.push(`форсаж +${w.effect.rush}`);
+      if (w.effect.nitro) effects.push(`+${w.effect.nitro} нитро`);
       const pips = l => `<span class="lv">${[0, 1, 2].map(i => `<i class="${i < l ? 'on' : ''}"></i>`).join('')}</span>`;
       $('#dossierBody').innerHTML = `
         <div class="ds-top" style="--rc:${RN(id).color}">${faceId(id, 104)}<div class="ds-name"><small>№${id + 1}${id === d.human ? ' · ВЫ' : ''}</small><b>${RN(id).name}</b><div class="rc-tags">${tierBadge(ros.tier)}</div></div>

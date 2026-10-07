@@ -60,40 +60,44 @@
    *     pierce — игнорирует щит
    *     knock  — отбрасывает цель на N клеток назад
    *     strip  — сдирает сцепление цели
+   *     rush   — форсаж: стрелок получает +N скорости при попадании
+   *     nitro  — стрелок получает +N нитро при попадании
+   *  Сила подобрана симуляцией (sim/weapons.js): чем дороже пушка, тем больше мест она даёт —
+   *  ≈ ★135 за место разницы в цене (редкое ≈ +0,4, эпическое ≈ +1, легендарное ≈ +1,8 к обычным).
    */
   const WEAPONS = [
     { id: 'mg', name: 'Пулемёт «Шершень»', dmg: 9, range: 5, dir: 'front', charge: 5, acc: 0.9,
       effect: {}, fx: 'bullets', color: '#ffd23f', desc: 'Дешёвый и скорострельный. Заряжается быстрее всех.' },
     { id: 'shotgun', name: 'Дробовик «Гром»', dmg: 19, range: 2, dir: 'both', charge: 8, acc: 0.95,
       effect: { slow: 1 }, fx: 'pellets', color: '#ffb347', desc: 'Страшен в упор: бьёт и вперёд, и назад.' },
-    { id: 'rocket', name: 'Ракета «Гарпия»', dmg: 27, range: 10, dir: 'front', charge: 13, acc: 0.82,
-      effect: { slow: 1.5 }, fx: 'rocket', color: '#ff5a36', desc: 'Самонаводящаяся ракета для охоты на лидеров.' },
-    { id: 'emp', name: 'ЭМИ-пушка «Импульс»', dmg: 8, range: 7, dir: 'both', charge: 10, acc: 0.85,
-      effect: { lock: 6, slow: 1 }, fx: 'pulse', color: '#5ef2ff', desc: 'Электроимпульс замораживает блоки на поле жертвы.' },
+    { id: 'rocket', name: 'Ракета «Гарпия»', dmg: 34, range: 10, dir: 'front', charge: 11, acc: 0.82,
+      effect: { slow: 2, rush: 0.4 }, fx: 'rocket', color: '#ff5a36', desc: 'Самонаводящаяся ракета для охоты на лидеров: подбитый уступает дорогу стрелку.' },
+    { id: 'emp', name: 'ЭМИ-пушка «Импульс»', dmg: 12, range: 7, dir: 'both', charge: 9, acc: 0.85,
+      effect: { lock: 8, slow: 2, nitro: 4, rush: 0.5 }, fx: 'pulse', color: '#5ef2ff', desc: 'Электроимпульс замораживает блоки на поле жертвы и перекачивает её энергию в нитро стрелка.' },
     { id: 'oil', name: 'Маслосброс «Слик»', dmg: 4, range: 5, dir: 'rear', charge: 7, acc: 0.9,
       effect: { slow: 3.5, strip: true }, fx: 'oil', color: '#7c6cff', desc: 'Пятно масла под колёса преследователя — тот теряет скорость и сцепление.' },
     { id: 'flame', name: 'Огнемёт «Дракон»', dmg: 10, range: 3, dir: 'front', charge: 8, acc: 0.95,
       effect: { burn: { dmg: 5, turns: 3 } }, fx: 'flame', color: '#ff7b00', desc: 'Поджигает цель: урон продолжается ещё 3 хода.' },
     { id: 'harpoon', name: 'Гарпун «Кракен»', dmg: 10, range: 7, dir: 'front', charge: 9, acc: 0.85,
-      effect: { pull: 1.5 }, fx: 'hook', color: '#c0c8d8', desc: 'Цепляется за жертву и крадёт её скорость.' },
-    { id: 'mines', name: 'Мины «Ёж»', dmg: 14, range: 4, dir: 'rear', charge: 11, acc: 0.8,
-      effect: { aoe: true }, fx: 'mines', color: '#ff2d55', desc: 'Рассыпает мины позади — подрывает всех преследователей в зоне.' },
-    { id: 'rail', name: 'Рельсотрон «Копьё»', dmg: 33, range: 16, dir: 'front', charge: 17, acc: 0.75,
-      effect: { pierce: true }, fx: 'beam', color: '#9d7bff', desc: 'Пробивает любую броню насквозь. Долго заряжается.' },
+      effect: { pull: 1 }, fx: 'hook', color: '#c0c8d8', desc: 'Цепляется за жертву и крадёт её скорость.' },
+    { id: 'mines', name: 'Мины «Ёж»', dmg: 20, range: 4, dir: 'rear', charge: 9, acc: 0.8,
+      effect: { aoe: true, slow: 1.5 }, fx: 'mines', color: '#ff2d55', desc: 'Рассыпает мины позади — подрывает всех преследователей в зоне.' },
+    { id: 'rail', name: 'Рельсотрон «Копьё»', dmg: 42, range: 16, dir: 'front', charge: 14, acc: 0.82,
+      effect: { pierce: true, knock: 3, rush: 2 }, fx: 'beam', color: '#9d7bff', desc: 'Пробивает любую броню насквозь и отбрасывает цель, а отдача магнитных рельс разгоняет стрелка.' },
     { id: 'chain', name: 'Цепь «Кистень»', dmg: 15, range: 1, dir: 'both', charge: 6, acc: 0.95,
       effect: { knock: 2 }, fx: 'chain', color: '#d6d3d1', desc: 'Удар в ближнем бою отбрасывает соперника назад.' }
   ];
 
   // Редкие пушки — только в магазине гаража
   WEAPONS.push(
-    { id: 'grad', name: 'Кассетные ракеты «Град»', dmg: 16, range: 9, dir: 'front', charge: 14, acc: 0.78, shop: true,
-      effect: { aoe: true }, fx: 'rocket', color: '#ff8c42', desc: 'Залп кассетных ракет накрывает всех впереди в зоне поражения.' },
-    { id: 'tesla', name: 'Тесла-пушка «Шаровая молния»', dmg: 14, range: 6, dir: 'both', charge: 12, acc: 0.9, shop: true,
-      effect: { chain: 3, lock: 2 }, fx: 'pulse', color: '#7df9ff', desc: 'Молния перескакивает на трёх ближайших соперников и замораживает блоки.' },
-    { id: 'gravity', name: 'Гравиган «Якорь»', dmg: 12, range: 8, dir: 'both', charge: 11, acc: 0.9, shop: true,
-      effect: { slow: 3, pull: 2 }, fx: 'pulse', color: '#b388ff', desc: 'Гравитационный якорь гасит скорость цели и передаёт её стрелку.' },
-    { id: 'plasma', name: 'Плазмомёт «Сверхновая»', dmg: 30, range: 12, dir: 'front', charge: 15, acc: 0.86, shop: true,
-      effect: { pierce: true, burn: { dmg: 6, turns: 3 } }, fx: 'beam', color: '#ff4fd8', desc: 'Сгусток плазмы прожигает броню и поджигает мотоцикл.' }
+    { id: 'grad', name: 'Кассетные ракеты «Град»', dmg: 18, range: 9, dir: 'front', charge: 14, acc: 0.78, shop: true,
+      effect: { aoe: true, slow: 1 }, fx: 'rocket', color: '#ff8c42', desc: 'Залп кассетных ракет накрывает всех впереди в зоне поражения.' },
+    { id: 'tesla', name: 'Тесла-пушка «Шаровая молния»', dmg: 20, range: 6, dir: 'both', charge: 10, acc: 0.9, shop: true,
+      effect: { chain: 3, lock: 4, slow: 1, nitro: 2 }, fx: 'pulse', color: '#7df9ff', desc: 'Молния перескакивает на трёх ближайших соперников, замораживает блоки и подзаряжает нитро стрелка.' },
+    { id: 'gravity', name: 'Гравиган «Якорь»', dmg: 15, range: 8, dir: 'both', charge: 9, acc: 0.9, shop: true,
+      effect: { slow: 3.5, pull: 2.5, rush: 1.5 }, fx: 'pulse', color: '#b388ff', desc: 'Гравитационный якорь гасит скорость цели, передаёт её стрелку и швыряет его вперёд.' },
+    { id: 'plasma', name: 'Плазмомёт «Сверхновая»', dmg: 40, range: 14, dir: 'front', charge: 11, acc: 0.9, shop: true,
+      effect: { pierce: true, burn: { dmg: 8, turns: 3 }, rush: 3.5 }, fx: 'beam', color: '#ff4fd8', desc: 'Сгусток плазмы прожигает броню и поджигает мотоцикл, а выхлоп реактора даёт стрелку мощный форсаж.' }
   );
   const RARITY = {
     common: { name: 'Обычное', color: '#a8b3c7', price: 60 },
