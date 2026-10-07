@@ -307,12 +307,10 @@
       if (crowd >= 2 && this.round >= CFG.crowdFrom) {
         const p = Math.min(CFG.crowdMaxP, CFG.crowdBase * (crowd - 1) * (100 - r.morale) / 50) * (has(r, 'cold') ? 0.5 : 1);
         if (this.rand() < p) {
-          const loss = CFG.crowdLoss[0] + this.rand() * (CFG.crowdLoss[1] - CFG.crowdLoss[0]), breakdown = this.rand() < 0.25;
-          r.speed = Math.max(0, r.speed - loss);
-          if (breakdown) r.grip = Math.max(0, r.grip - 3);
+          const breakdown = this.rand() < CFG.breakdownChance;
+          nerve = this.nerveHit(r, breakdown);
           r.nerves++;
-          nerve = { loss, breakdown };
-          this.fx.push({ id: r.id, text: breakdown ? '😱 НЕРВНЫЙ СРЫВ' : '😰 ДРОГНУЛ!', color: '#c9a6ff' });
+          this.fx.push({ id: r.id, text: breakdown ? (nerve.stun ? '😱 СРЫВ: пропуск хода' : '😱 НЕРВНЫЙ СРЫВ') : '😰 ДРОГНУЛ!', color: '#c9a6ff' });
         }
       }
       let boost = 0;
@@ -323,6 +321,7 @@
         return sev;
       };
       let v = r.speed + boost;
+      if (nerve && nerve.halfMove) { const cut = v * 0.5; v -= cut; nerve.loss = cut; } // дрогнул: проехал только полпути
       let sev = sevOver(v, r.frac);
       let brake = 0;
       // торможение перед поворотом (ограничено мощностью тормозов)
@@ -375,6 +374,21 @@
       return { from, to, cells, boost, brake, sev, skid, cellFx, picked, nerve, crowd, finished };
     }
 
+    // последствия «дрогнул» / «нервный срыв» (вариант задаётся CFG.nerveMode)
+    nerveHit(r, breakdown) {
+      const m = CFG.nerveMode, U = (a, b) => a + this.rand() * (b - a);
+      const out = { breakdown, loss: 0, stun: false, locked: [] };
+      const slow = v => { out.loss += Math.min(r.speed, v); r.speed = Math.max(0, r.speed - v); };
+      if (m === 'A') { slow(U(0.8, 1.5)); if (breakdown) r.grip = Math.max(0, r.grip - 3); }
+      else if (m === 'B') { slow(U(CFG.crowdLoss[0], CFG.crowdLoss[1])); if (breakdown) out.stun = true; }
+      else if (m === 'C') { out.halfMove = true; if (breakdown) { out.stun = true; r.nitro = 0; } }
+      else if (m === 'D') { slow(U(0.8, 1.5)); out.locked = r.board.lockRandom(3, 2); if (breakdown) out.stun = true; }
+      else if (m === 'E') { slow(r.speed * 0.5); if (breakdown) { out.stun = true; slow(r.speed * 0.5); } }
+      else if (m === 'F') { out.stun = true; if (breakdown) out.stun2 = true; }
+      if (out.stun) r.stunned = out.stun2 ? 2 : 1;
+      return out;
+    }
+
     // сколько «давления» вокруг: соседи в ±1 клетке, агрессор давит за двоих
     crowdAround(r) {
       let n = 0;
@@ -414,7 +428,7 @@
     // нужен ли ход человека (поле ждёт ввода)
     needsInput() {
       const r = this.current;
-      return !this.over && r.human && (r.finished || (!r.skip && !(r.burn && r.hp <= r.burn.dmg)));
+      return !this.over && r.human && (r.finished || (!r.skip && !r.stunned && !(r.burn && r.hp <= r.burn.dmg)));
     }
 
     playTurn(move) {
@@ -439,6 +453,14 @@
         b.turns--; if (b.turns <= 0) r.burn = null;
         const d = this.applyDamage(r, b.dmg, true);
         res.burn = { dmg: d.real, crashed: d.crashed };
+      }
+      if (r.stunned > 0 && !r.skip) {
+        r.stunned--;
+        res.skipped = true; res.stunned = true;
+        r.speed *= CFG.stunKeep;
+        r.board.tickLocks();
+        this.advance();
+        return res;
       }
       if (r.skip > 0 && !(res.burn && res.burn.crashed)) {
         r.skip--;
