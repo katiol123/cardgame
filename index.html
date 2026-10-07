@@ -30,6 +30,7 @@
       </div>
       <button id="btnAuto" class="btn only-player" title="Автопилот: ИИ ходит за вас">🤖 Авто</button>
       <button id="btnSkip" class="btn" title="Мгновенно досчитать текущую гонку">⏭ Досчитать</button>
+      <button id="btnPaddock" class="btn" title="Паддок: новости, команды, покупки">📰</button>
       <button id="btnTable" class="btn" title="Таблица чемпионата">🏆</button>
       <button id="btnRules" class="btn" title="Правила">?</button>
       <button id="btnRestart" class="btn" title="Новый чемпионат">↺</button>
@@ -102,6 +103,14 @@
     </div>
   </div>
 
+  <div class="modal" id="paddock">
+    <div class="modal-card paddock-card">
+      <button class="close" data-close="paddock">✕</button>
+      <div id="paddockBody"></div>
+      <div class="intro-btns" id="paddockBtns"></div>
+    </div>
+  </div>
+
   <div class="modal" id="garage">
     <div class="modal-card garage-card">
       <div id="garageBody"></div>
@@ -113,6 +122,13 @@
     <div class="modal-card results-card final-card">
       <div id="finalBody"></div>
       <div class="intro-btns"><button class="btn big primary" id="btnAgain">Новый чемпионат</button></div>
+    </div>
+  </div>
+
+  <div class="modal" id="dossier">
+    <div class="modal-card dossier-card">
+      <button class="close" data-close="dossier">✕</button>
+      <div id="dossierBody"></div>
     </div>
   </div>
 

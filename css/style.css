@@ -690,3 +690,87 @@ body.your-turn .board { cursor: pointer; touch-action: none; }
 .ti-map .news { max-width: 760px; }
 @media (max-width: 720px) { .nb { grid-template-columns: 1fr; gap: 2px; } }
 .ti-map:has(.news) svg { max-height: 50vh; }
+
+/* паддок */
+.paddock-card { max-width: 1180px; }
+.paddock-card h2 { font: 28px var(--head); margin: 0 0 6px; }
+.paddock-card h2 small { font: 14px 'Exo 2'; color: var(--muted); margin-left: 8px; }
+.nh-list.big { max-height: none; }
+.nh-list.big .nh { animation-delay: calc(var(--i) * .06s); font-size: 14px; padding: 9px 12px; }
+.pt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.pt { padding: 10px; border-radius: 14px; background: rgba(255,255,255,.035); border: 1px solid var(--line); border-top: 3px solid var(--rc); display: grid; gap: 6px; animation: igin .4s both; animation-delay: calc(var(--i) * .03s); font-size: 12px; }
+.pt.me { box-shadow: 0 0 0 1px var(--rc), 0 0 20px color-mix(in srgb, var(--rc) 35%, transparent); }
+.pt-h { display: flex; align-items: center; gap: 8px; }
+.pt-pos { font: 18px var(--head); color: var(--muted); width: 22px; text-align: center; }
+.pt:nth-child(-n+3) .pt-pos { color: var(--gold); }
+.pt-n { flex: 1; min-width: 0; }
+.pt-n b { font-size: 15px; }
+.pt-n b small { color: var(--gold); font-size: 10px; }
+.pt-n > div { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; }
+.pt-pts { text-align: right; position: relative; }
+.pt-pts b { font: 20px var(--head); font-weight: 400; display: block; line-height: 1; }
+.pt-pts small { color: var(--muted); }
+.rk2 { font-style: normal; font-size: 10px; font-weight: 800; padding: 0 4px; border-radius: 4px; display: inline-block; margin-top: 2px; }
+.rk2.up { background: #2fdc74; color: #04220f; } .rk2.down { background: #ff5470; color: #2a0008; }
+.pt-row { display: flex; justify-content: space-between; gap: 6px; color: #dfe5f1; }
+.pt-row small.up { color: #7af0a8; } .pt-row small.down { color: #ff7a8a; }
+.pt-st { display: grid; grid-template-columns: 14px 1fr 20px; gap: 6px; align-items: center; }
+.pt-st span { font-weight: 800; }
+.pt-st i { height: 6px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; }
+.pt-st i b { display: block; height: 100%; border-radius: 3px; }
+.pt-st em { font-style: normal; text-align: right; font-weight: 800; }
+.c-acc-bg { background: #ff9a3c; } .c-top-bg { background: #5fe9ff; } .c-han-bg { background: #c98cff; }
+.pt-w { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 6px; border-radius: 8px; background: rgba(0,0,0,.3); border-left: 3px solid var(--rr); }
+.pt-w span { font-weight: 800; }
+.pt-crew { display: flex; gap: 8px; flex-wrap: wrap; }
+.pt-crew span { cursor: help; }
+.pt-crew small { color: var(--muted); }
+.pb-list { display: grid; gap: 6px; }
+.pb { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.035); border-left: 3px solid var(--rc); }
+.pb small { color: var(--muted); }
+.pb-items { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.pb-items span { font-size: 12px; padding: 2px 8px; border-radius: 8px; background: rgba(0,0,0,.3); }
+.pb-items span.weapon { border: 1px solid rgba(255,210,63,.5); color: var(--gold); }
+.pb-items em { font-style: normal; color: var(--gold); font-size: 11px; }
+
+/* досье гонщика */
+.rn { cursor: pointer; text-decoration: underline dotted rgba(255,255,255,.3); text-underline-offset: 3px; }
+.rn:hover { text-decoration-color: currentColor; filter: brightness(1.25); }
+#dossier { z-index: 120; }
+.dossier-card { max-width: 980px; display: grid; gap: 12px; }
+.dossier-card h4 { font: 15px var(--head); color: var(--gold); margin: 8px 0 6px; }
+.dossier-card h4 small { font: 12px 'Exo 2'; color: var(--muted); margin-left: 6px; }
+.ds-top { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.ds-top svg.helmet { filter: drop-shadow(0 0 18px var(--rc)); }
+.ds-name small { display: block; color: var(--muted); font-size: 12px; }
+.ds-name b { font: 30px var(--head); font-weight: 400; color: #fff; text-shadow: 0 0 22px var(--rc); }
+.ds-kpi { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.ds-kpi div { text-align: center; padding: 6px 12px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid var(--line); min-width: 74px; }
+.ds-kpi b { display: block; font: 20px var(--head); font-weight: 400; }
+.ds-kpi small { color: var(--muted); font-size: 10px; }
+.ds-perks { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; }
+.ds-perk { display: flex; gap: 10px; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid var(--line); }
+.ds-perk.beh { border-color: rgba(255,51,85,.5); }
+.ds-perk i { font-style: normal; font-size: 26px; }
+.ds-perk p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+.ds-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ds-stat { display: grid; gap: 2px; margin-bottom: 6px; }
+.ds-stat small { color: var(--muted); font-size: 11px; }
+.ds-stat small.up { color: #7af0a8; }
+.ds-chart { width: 100%; height: 80px; background: rgba(0,0,0,.25); border-radius: 10px; }
+.ds-chart polyline { fill: none; stroke: #c9a6ff; stroke-width: 2.5; }
+.ds-chart circle { fill: #c9a6ff; }
+.ds-chart .mid { stroke: rgba(255,255,255,.18); stroke-dasharray: 4 4; }
+.ds-note { color: var(--muted); font-size: 11px; }
+.ds-w { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 12px; background: linear-gradient(135deg, color-mix(in srgb, var(--wc) 16%, transparent), rgba(255,255,255,.02)); border-left: 3px solid var(--rr); }
+.ds-w b { display: block; }
+.ds-w p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+.ds-tune { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; }
+.ds-crew { display: grid; gap: 4px; font-size: 13px; }
+.ds-crew div { display: flex; gap: 8px; align-items: center; cursor: help; }
+.ds-crew div.off { opacity: .45; }
+.ds-hist small.up { color: #7af0a8; } .ds-hist small.down { color: #ff7a8a; }
+.ds-hist td.pts { color: #7af0a8; font-weight: 800; }
+.ds-hist td.fame { color: var(--gold); }
+.dossier-card .pb-items span { font-size: 11px; }
+@media (max-width: 720px) { .ds-grid { grid-template-columns: 1fr; } .ds-kpi { margin-left: 0; } }

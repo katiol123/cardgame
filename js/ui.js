@@ -736,7 +736,7 @@
     box.prepend(e);
     while (box.children.length > 40) box.lastChild.remove();
   }
-  const nm = r => `<b style="color:${r.color}">${r.name}</b>`;
+  const nm = r => `<b class="rn" data-rid="${r.id}" style="color:${r.color}">${r.name}</b>`;
 
   function boardHead() {
     const race = state.race, r = race.racers[state.selected];
@@ -948,6 +948,7 @@
     },
     create(roster, human) {
       const z = () => Array(16).fill(0);
+      roster.forEach(r => { r.base = Object.assign({}, r.stats); r.morale0 = r.morale; r.buys = []; });
       Champ.d = { v: 1, roster, human, stage: 0, points: z(), wins: z(), podiums: z(), best: Array(16).fill(99), history: [], weather: null, fame: z(), news: null };
       Champ.save();
     },
@@ -978,13 +979,14 @@
         const mult = r.perks.includes('press') ? 1.4 : 1;
         const earned = Math.round((prize + r.fame) * mult);
         d.fame[r.id] += earned;
-        row[r.id] = { place: r.place, pts, prize, fame: r.fame, show: r.showFame, earned, press: mult > 1 };
+        row[r.id] = { place: r.place, pts, prize, fame: r.fame, show: r.showFame, earned, press: mult > 1, dnf: !!r.dnf, hits: r.hits, shots: r.shots, dmg: Math.round(r.dmgDealt), crashes: r.crashes, nerves: r.nerves, rank: 0 };
       });
       // мораль: место, аварии и движение в таблице чемпионата (с 3-го этапа — до этого таблица слишком плотная)
       const rankAfter = Champ.standings();
       race.racers.forEach(r => {
         const shift = d.stage >= 2 ? rankBefore.indexOf(r.id) - rankAfter.indexOf(r.id) : 0;
         row[r.id].rankShift = shift;
+        row[r.id].rank = rankAfter.indexOf(r.id) + 1;
         row[r.id].mo = window.Gen.moraleAfter(window.Shop.ensure(d.roster[r.id]), r.place, r.crashes, shift);
       });
       d.history.push({ track: Champ.def().id, rain: d.weather && d.weather.rain, row });
@@ -1005,7 +1007,7 @@
     clear() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* */ } }
   };
   const RN = id => window.RACERS[id];
-  const nmId = id => `<b style="color:${RN(id).color}">${RN(id).name}</b>`;
+  const nmId = id => `<b class="rn" data-rid="${id}" style="color:${RN(id).color}">${RN(id).name}</b>`;
   const helmetId = (id, size) => Art.helmet({ id, num: id + 1, color: RN(id).color }, size);
 
   // =====================================================================
@@ -1294,19 +1296,20 @@
             <p class="ti-desc">${def.desc}</p>
             <div class="ti-feats">${def.features.map(([ic, t]) => `<div><i>${ic}</i>${t}</div>`).join('')}<div class="wx ${state.rain ? 'wet' : ''}"><i>${wet[0]}</i>${wet[1]}</div></div>
             <div class="ti-grid">${me ? `Ваша позиция на старте: <b>${me}</b> из 16` : `Поул-позиция: ${nmId(grid[0])}`}${leader >= 0 ? ` · лидер чемпионата ${nmId(leader)} стартует последним` : ' · стартовая решётка по жребию'}</div>
-            <div class="ti-btns"><button class="btn big primary" id="tiGo">НА СТАРТ!</button>${d.stage ? '<button class="btn big" id="tiTable">🏆 Таблица</button>' : ''}</div>
+            <div class="ti-btns"><button class="btn big primary" id="tiGo">НА СТАРТ!</button>${d.stage ? '<button class="btn big" id="tiTable">🏆 Таблица</button><button class="btn big" id="tiPaddock">📰 Паддок</button>' : ''}</div>
           </div>
         </div>`;
       el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
       $('#tiGo').onclick = () => startStage();
       const tb = $('#tiTable'); if (tb) tb.onclick = () => Table.open();
+      const tp = $('#tiPaddock'); if (tp) tp.onclick = () => Paddock.show();
     }
   };
 
   function champTableHtml(highlight) {
     const d = Champ.d, st = Champ.standings(), max = Math.max(1, d.points[st[0]]);
     return `<div class="ctable">${st.map((id, i) => `<div class="crow ${id === d.human ? 'me' : ''}" style="--rc:${RN(id).color};--w:${d.points[id] / max * 100}%;--i:${i}">
-      <span class="cr-p">${i + 1}</span>${helmetId(id, 26)}<span class="cr-n">${RN(id).name}${id === d.human ? ' <small>ВЫ</small>' : ''}</span>
+      <span class="cr-p">${i + 1}</span>${helmetId(id, 26)}<span class="cr-n rn" data-rid="${id}">${RN(id).name}${id === d.human ? ' <small>ВЫ</small>' : ''}</span>
       <span class="cr-bar"><i></i></span><span class="cr-w">${d.wins[id] ? '🏆' + d.wins[id] : ''}</span>
       <b class="cr-pts">${d.points[id]}</b>${highlight && highlight[id] && highlight[id].pts ? `<em>+${highlight[id].pts}</em>` : '<em></em>'}${highlight && highlight[id] && highlight[id].rankShift ? `<i class="rk ${highlight[id].rankShift > 0 ? 'up' : 'down'}" title="${highlight[id].rankShift > 0 ? 'Поднялся' : 'Опустился'} в таблице: мораль ${sgn(highlight[id].mo.parts.rank)}">${highlight[id].rankShift > 0 ? '▲' : '▼'}${Math.abs(highlight[id].rankShift)}</i>` : ''}</div>`).join('')}</div>`;
   }
@@ -1344,11 +1347,12 @@
     const me = Champ.d.human;
     $('#btnNext').textContent = last ? '🏆 Итоги чемпионата' : `Следующий этап → ${window.TRACKS[Champ.d.stage].name}`;
     if (!last && me >= 0) $('#btnNext').textContent = `🔧 В гараж (★${Champ.d.fame[me]})`;
+    else if (!last) $('#btnNext').textContent = '📰 В паддок →';
     $('#btnNext').onclick = () => {
       $('#results').classList.remove('show');
       if (last) Final.show();
       else if (me >= 0) Garage.show(() => TrackIntro.show());
-      else TrackIntro.show();
+      else Paddock.show(() => TrackIntro.show());
     };
     $('#results').classList.add('show');
     FXS.confetti(st[0].id);
@@ -1409,6 +1413,7 @@
       const o = window.Shop.options(ros).find(x => x.type === btn.dataset.type && x.key === btn.dataset.key);
       if (!o || o.price > d.fame[id]) return;
       window.Shop.apply(ros, o);
+      (ros.buys = ros.buys || []).push({ stage: d.stage, label: window.Shop.label(o), price: o.price, type: o.type });
       d.fame[id] -= o.price;
       Champ.save();
       const r = btn.getBoundingClientRect();
@@ -1431,6 +1436,7 @@
       if (id === d.human) return;
       const res = window.Shop.aiSpend(ros, d.fame[id], rnd);
       d.fame[id] = res.wallet;
+      (ros.buys = ros.buys || []).push(...res.items.map(it => ({ stage: d.stage, label: it.label, price: it.price, type: it.type })));
       if (res.items.length) buys.push({ id, items: res.items, spent: res.items.reduce((a, b) => a + b.price, 0) });
     });
     buys.sort((a, b) => b.spent - a.spent);
@@ -1480,6 +1486,106 @@
     if (!heads && !buys) return '';
     return `<div class="news">${heads ? `<h4>📰 Новости паддока</h4><div class="nh-list">${heads}</div>` : ''}${buys ? `<details class="nb-wrap" ${opts && opts.open ? 'open' : ''}><summary>🛒 Покупки соперников (${n.buys.filter(b => b.id !== skip).length})</summary>${buys}</details>` : ''}</div>`;
   }
+
+  // =====================================================================
+  //              ПАДДОК: всё о командах между гонками (и для зрителя)
+  // =====================================================================
+  const Paddock = {
+    tab: 'news', after: null,
+    show(after) {
+      Paddock.after = after || null;
+      Paddock.tab = 'news';
+      Paddock.render();
+      $('#paddockBtns').innerHTML = after ? '<button class="btn big primary" id="pdGo">К трассе →</button>' : '';
+      const go = $('#pdGo'); if (go) go.onclick = () => Paddock.close();
+      $('#paddock').classList.add('show');
+    },
+    close() { $('#paddock').classList.remove('show'); const f = Paddock.after; Paddock.after = null; if (f) f(); },
+    teamCard(id, i, last) {
+      const d = Champ.d, ros = window.Shop.ensure(d.roster[id]), w = window.makeWeapon(ros.weapon, ros.wmods), R = window.RARITY[w.rarity];
+      const lr = last && last.row[id];
+      const mo = lr && lr.mo ? lr.mo.delta : 0, rk = lr && lr.rankShift ? lr.rankShift : 0;
+      const st = (k, c, n) => `<div class="pt-st"><span class="${c}">${n}</span><i><b class="${c}-bg" style="width:${ros.stats[k] * 5}%"></b></i><em>${ros.stats[k]}</em></div>`;
+      const crew = Object.entries(window.ECON.crew).filter(([k]) => ros.crew[k]).map(([k, c]) => `<span title="${c.name}: ур. ${ros.crew[k]}">${c.icon}${ros.crew[k]}</span>`).join('') || '<small>команда не нанята</small>';
+      const tune = ['cal', 'mag', 'aim'].filter(k => ros.wmods[k]).map(k => `${window.ECON.wmods[k].icon}${ros.wmods[k]}`).join(' ');
+      return `<div class="pt ${id === d.human ? 'me' : ''}" style="--rc:${RN(id).color};--i:${i}">
+        <div class="pt-h"><span class="pt-pos">${i + 1}</span>${helmetId(id, 40)}<div class="pt-n"><b class="rn" data-rid="${id}">${RN(id).name}${id === d.human ? ' <small>ВЫ</small>' : ''}</b><div>${tierBadge(ros.tier)}${perkBadges(ros.perks)}</div></div>
+          <div class="pt-pts"><b>${d.points[id]}</b><small>оч.</small>${rk ? `<i class="rk2 ${rk > 0 ? 'up' : 'down'}">${rk > 0 ? '▲' : '▼'}${Math.abs(rk)}</i>` : ''}</div></div>
+        <div class="pt-row"><span title="Мораль">${moraleEmoji(ros.morale)} ${ros.morale}${mo ? ` <small class="${mo > 0 ? 'up' : 'down'}">${mo > 0 ? '+' : ''}${mo}</small>` : ''}</span><span title="Слава в кошельке">★${d.fame[id]}</span><span title="Побед / подиумов">🏆${d.wins[id]} · 🥉${d.podiums[id]}</span></div>
+        ${st('accel', 'c-acc', 'Р')}${st('top', 'c-top', 'С')}${st('handling', 'c-han', 'М')}
+        <div class="pt-w" style="--rr:${R.color}">${Art.weaponIcon(w, 18)}<span>${w.name}</span><small style="color:${R.color}">${R.name}</small>${tune ? `<small>${tune}</small>` : ''}</div>
+        <div class="pt-crew">${crew}</div></div>`;
+    },
+    render() {
+      const d = Champ.d, last = d.history[d.history.length - 1];
+      const tabs = [['news', '📰 Новости'], ['teams', '🏍 Команды'], ['buys', '🛒 Покупки']];
+      let body = '';
+      const n = newsOf(d);
+      if (Paddock.tab === 'news') {
+        body = n.headlines.length ? `<div class="nh-list big">${n.headlines.map((h, i) => `<div class="nh" style="--i:${i}"><i>${h.ic}</i><span>${h.t}</span></div>`).join('')}</div>` : '<p class="g-hint">Новости появятся после первого этапа.</p>';
+      } else if (Paddock.tab === 'teams') {
+        body = `<p class="g-hint">Команды в порядке таблицы чемпионата. Наведите на значки, чтобы прочитать подробности.</p><div class="pt-grid">${Champ.standings().map((id, i) => Paddock.teamCard(id, i, last)).join('')}</div>`;
+      } else {
+        body = n.buys.length ? `<div class="pb-list">${n.buys.map(b => `<div class="pb" style="--rc:${RN(b.id).color}">${helmetId(b.id, 30)}<div><b class="rn" data-rid="${b.id}">${RN(b.id).name}</b> <small>потрачено ★${b.spent}, осталось ★${d.fame[b.id]}</small><div class="pb-items">${b.items.map(it => `<span class="${it.type}">${it.label} <em>★${it.price}</em></span>`).join('')}</div></div></div>`).join('')}</div>` : '<p class="g-hint">В этот перерыв соперники ничего не покупали.</p>';
+      }
+      $('#paddockBody').innerHTML = `<h2>📰 Паддок <small>${d.stage ? `после этапа ${d.stage} из ${window.TRACKS.length}` : 'перед стартом сезона'}</small></h2>
+        <div class="g-tabs">${tabs.map(([k, t]) => `<button class="g-tab ${Paddock.tab === k ? 'on' : ''}" data-tab="${k}">${t}</button>`).join('')}</div>
+        <div class="g-body">${body}</div>`;
+      document.querySelectorAll('#paddockBody .g-tab').forEach(b => { b.onclick = () => { Paddock.tab = b.dataset.tab; Paddock.render(); }; });
+    }
+  };
+
+  // =====================================================================
+  //                  ДОСЬЕ ГОНЩИКА (клик по имени)
+  // =====================================================================
+  const Dossier = {
+    open(id) {
+      const d = Champ.d;
+      if (!d || !d.roster || !d.points) return;
+      const ros = window.Shop.ensure(d.roster[id]), w = window.makeWeapon(ros.weapon, ros.wmods), R = window.RARITY[w.rarity];
+      const st = Champ.standings(), pos = st.indexOf(id) + 1;
+      const hist = d.history.map((h, i) => ({ i, h, r: h.row[id], def: window.TRACKS.find(t => t.id === h.track) }));
+      const tot = hist.reduce((a, x) => { a.hits += x.r.hits || 0; a.shots += x.r.shots || 0; a.dmg += x.r.dmg || 0; a.crashes += x.r.crashes || 0; a.nerves += x.r.nerves || 0; a.fame += x.r.earned || 0; return a; }, { hits: 0, shots: 0, dmg: 0, crashes: 0, nerves: 0, fame: 0 });
+      const avgPlace = hist.length ? (hist.reduce((a, x) => a + x.r.place, 0) / hist.length).toFixed(1).replace('.', ',') : '—';
+      const statRow = (k, n, c, sc) => {
+        const base = ros.base ? ros.base[k] : ros.stats[k], up = ros.stats[k] - base;
+        return `<div class="ds-stat"><b class="${c}">${n}</b>${statBar('', ros.stats[k], '', sc).replace('<div class="stat-l"><span></span></div>', '')}${up ? `<small class="up">+${up} прокачано</small>` : '<small>без прокачки</small>'}</div>`;
+      };
+      // график морали по этапам
+      const pts = [ros.morale0 !== undefined ? ros.morale0 : (hist[0] && hist[0].r.mo ? hist[0].r.mo.before : ros.morale)].concat(hist.map(x => x.r.mo ? x.r.mo.after : ros.morale));
+      const W = 300, Hh = 70, X = i => 10 + i * (W - 20) / Math.max(1, pts.length - 1), Y = v => Hh - 6 - v / 100 * (Hh - 12);
+      const chart = `<svg class="ds-chart" viewBox="0 0 ${W} ${Hh}"><line x1="0" x2="${W}" y1="${Y(50)}" y2="${Y(50)}" class="mid"/><polyline points="${pts.map((v, i) => `${X(i)},${Y(v)}`).join(' ')}"/>${pts.map((v, i) => `<circle cx="${X(i)}" cy="${Y(v)}" r="3"><title>${i ? 'после этапа ' + i : 'старт сезона'}: ${v}</title></circle>`).join('')}</svg>`;
+      const effects = [];
+      if (w.effect.slow) effects.push(`замедление −${w.effect.slow}`);
+      if (w.effect.burn) effects.push(`поджог ${w.effect.burn.dmg}×${w.effect.burn.turns}`);
+      if (w.effect.lock) effects.push(`заморозка ${w.effect.lock}`);
+      if (w.effect.pull) effects.push(`кража скорости ${w.effect.pull}`);
+      if (w.effect.aoe) effects.push('по площади');
+      if (w.effect.chain) effects.push(`цепь на ${w.effect.chain}`);
+      if (w.effect.pierce) effects.push('пробивает щит');
+      if (w.effect.knock) effects.push(`отброс ${w.effect.knock}`);
+      if (w.effect.strip) effects.push('срыв сцепления');
+      const pips = l => `<span class="lv">${[0, 1, 2].map(i => `<i class="${i < l ? 'on' : ''}"></i>`).join('')}</span>`;
+      $('#dossierBody').innerHTML = `
+        <div class="ds-top" style="--rc:${RN(id).color}">${helmetId(id, 78)}<div class="ds-name"><small>№${id + 1}${id === d.human ? ' · ВЫ' : ''}</small><b>${RN(id).name}</b><div class="rc-tags">${tierBadge(ros.tier)}</div></div>
+          <div class="ds-kpi"><div><b>${pos}</b><small>место в таблице</small></div><div><b>${d.points[id]}</b><small>очков</small></div><div><b>${d.wins[id]}/${d.podiums[id]}</b><small>побед / подиумов</small></div><div><b>★${d.fame[id]}</b><small>слава</small></div></div></div>
+        ${ros.perks.length ? `<div class="ds-perks">${ros.perks.map(p => { const P = window.PERKS[p]; return `<div class="ds-perk ${P.behavior ? 'beh' : ''}"><i>${P.icon}</i><div><b>${P.name}</b>${P.behavior ? ' <small class="beh-l">поведение</small>' : ''}<p>${P.desc}</p></div></div>`; }).join('')}</div>` : ''}
+        <div class="ds-grid">
+          <section><h4>Байк</h4>${statRow('accel', 'Разгон', 'c-acc', 's-acc')}${statRow('top', 'Макс. скорость', 'c-top', 's-top')}${statRow('handling', 'Маневренность', 'c-han', 's-han')}
+            <h4>Мораль ${moraleEmoji(ros.morale)} ${ros.morale}</h4>${chart}<small class="ds-note">точки — мораль после каждого этапа, линия — уровень 50</small></section>
+          <section><h4>Оружие</h4><div class="ds-w" style="--wc:${w.color};--rr:${R.color}">${Art.weaponIcon(w, 40)}<div><b>${w.name}</b><small style="color:${R.color}">${R.name}</small><p>${w.desc}</p></div></div>
+            <div class="w-stats"><span><em>Урон</em>${Math.round(w.dmg * CFG.dmgMul)}</span><span><em>Дальность</em>${w.range} · ${DIR[w.dir]}</span><span><em>Точность</em>${Math.round(w.acc * 100)}%</span><span><em>Заряд</em>${w.charge}</span></div>
+            <div class="w-eff">${effects.map(e => `<i>${e}</i>`).join('') || '<i>без эффекта</i>'}</div>
+            <div class="ds-tune">${Object.entries(window.ECON.wmods).map(([k, m]) => `<span>${m.icon} ${m.name} ${pips(ros.wmods[k])}</span>`).join('')}</div>
+            <h4>Команда</h4><div class="ds-crew">${Object.entries(window.ECON.crew).map(([k, c]) => `<div title="${c.desc}" class="${ros.crew[k] ? '' : 'off'}"><span>${c.icon}</span>${c.name} ${pips(ros.crew[k])}</div>`).join('')}</div></section>
+        </div>
+        <section><h4>История сезона <small>среднее место ${avgPlace} · попаданий ${tot.hits}/${tot.shots} · урон ${tot.dmg} · аварий ${tot.crashes} · срывов в давке ${tot.nerves} · заработано ★${tot.fame}</small></h4>
+          ${hist.length ? `<table class="ds-hist"><thead><tr><th>Этап</th><th>Место</th><th>Очки</th><th>В таблице</th><th>Слава</th><th>Мораль</th><th>Попад.</th><th>Урон</th><th>Аварии</th></tr></thead><tbody>${hist.map(x => `<tr><td>${flagSvg(x.def.id, 20)} ${x.i + 1}. ${x.def.name}${x.h.rain ? ' 🌧' : ''}</td><td><b>${x.r.place}</b>${x.r.dnf ? ' <small class="dnf">DNF</small>' : ''}</td><td class="pts">${x.r.pts ? '+' + x.r.pts : '—'}</td><td>${x.r.rank || '—'}${x.r.rankShift ? ` <small class="${x.r.rankShift > 0 ? 'up' : 'down'}">${x.r.rankShift > 0 ? '▲' : '▼'}${Math.abs(x.r.rankShift)}</small>` : ''}</td><td class="fame">★${x.r.earned || 0}</td><td>${x.r.mo ? `${x.r.mo.after} <small class="${x.r.mo.delta > 0 ? 'up' : x.r.mo.delta < 0 ? 'down' : ''}">${x.r.mo.delta > 0 ? '+' : ''}${x.r.mo.delta || ''}</small>` : '—'}</td><td>${x.r.hits !== undefined ? x.r.hits + '/' + x.r.shots : '—'}</td><td>${x.r.dmg !== undefined ? x.r.dmg : '—'}</td><td>${x.r.crashes !== undefined ? x.r.crashes : '—'}</td></tr>`).join('')}</tbody></table>` : '<p class="g-hint">Сезон ещё не начался.</p>'}
+        </section>
+        <section><h4>Покупки</h4>${(ros.buys || []).length ? `<div class="pb-items">${ros.buys.map(b => `<span class="${b.type}">после этапа ${b.stage}: ${b.label} <em>★${b.price}</em></span>`).join('')}</div>` : '<p class="g-hint">Пока ничего не покупал.</p>'}</section>`;
+      $('#dossier').classList.add('show');
+    }
+  };
 
   const Final = {
     show() {
@@ -1570,6 +1676,12 @@
     $('#btnRestart').onclick = () => { if (confirm('Начать новый чемпионат? Текущий прогресс будет потерян.')) { state.raceId++; Input.finish(null); Champ.clear(); $('#results').classList.remove('show'); $('#trackIntro').classList.remove('show'); Menu.show(); } };
     $('#btnAgain').onclick = () => { $('#final').classList.remove('show'); Menu.show(); };
     $('#btnTable').onclick = () => { if (Champ.d) Table.open(); };
+    // клик по имени гонщика где угодно — досье
+    document.addEventListener('click', e => {
+      const t = e.target.closest && e.target.closest('[data-rid]');
+      if (t && Champ.d && Champ.d.points) { e.preventDefault(); Dossier.open(+t.dataset.rid); }
+    });
+    $('#btnPaddock').onclick = () => { if (Champ.d && Champ.d.points) Paddock.show(); };
     $('#gClose').onclick = () => Garage.close();
     $('#btnSkip').onclick = () => { if (!state.race || state.race.over || !Champ.d) return; state.skip = true; if (Input.resolve) Input.finish(null); };
     $('#btnAuto').onclick = () => {
@@ -1580,7 +1692,7 @@
     const openRules = () => $('#rules').classList.add('show');
     $('#btnRules').onclick = openRules;
     document.querySelectorAll('[data-close]').forEach(b => { b.onclick = () => $('#' + b.dataset.close).classList.remove('show'); });
-    ['rules', 'tableModal'].forEach(id => $('#' + id).addEventListener('click', e => { if (e.target.id === id) e.target.classList.remove('show'); }));
+    ['rules', 'tableModal', 'paddock', 'dossier'].forEach(id => $('#' + id).addEventListener('click', e => { if (e.target.id === id) e.target.classList.remove('show'); }));
     const pause = () => {
       state.paused = !state.paused;
       $('#btnPause').textContent = state.paused ? '▶' : '❚❚';
