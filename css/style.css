@@ -807,3 +807,7 @@ svg.face .fx-blink { animation: fxGlow .9s steps(2) infinite; }
 svg.face .fx-twinkle { transform-origin: 50px 50px; animation: fxTwinkle 1.6s ease-in-out infinite; }
 @keyframes fxTear { 0% { transform: translateY(-3px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(8px); opacity: 0; } }
 svg.face .fx-tear { animation: fxTear 2s ease-in infinite; }
+/* выравнивание уровней команды и тюнинга в один столбец */
+.ds-crew div, .ds-tune div { display: grid; grid-template-columns: 22px 150px auto; align-items: center; gap: 4px; }
+.ds-tune { display: grid; gap: 4px; }
+.g-nm { display: inline-block; min-width: 190px; }

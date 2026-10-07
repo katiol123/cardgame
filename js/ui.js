@@ -1405,7 +1405,7 @@
         const R = window.RARITY;
         body = `<div class="g-cur" style="--wc:${w.color}">${Art.weaponIcon(w, 46)}<div><small>Текущее оружие · <span style="color:${R[w.rarity].color}">${R[w.rarity].name}</span></small><b>${w.name}</b><small>${w.desc}</small></div><div class="g-sell">продажа: ★${window.Shop.sellValue(ros)}</div></div>
           <h4>Тюнинг текущего оружия</h4>` +
-          Object.entries(window.ECON.wmods).map(([k, m]) => `<div class="g-item"><div class="g-main"><b>${m.icon} ${m.name} ${pips(ros.wmods[k])}</b><small>${m.desc} · оружейные апы приносят больше славы за попадания</small></div>${buyBtn(find('wmod', k))}</div>`).join('') +
+          Object.entries(window.ECON.wmods).map(([k, m]) => `<div class="g-item"><div class="g-main"><b><span class="g-nm">${m.icon} ${m.name}</span>${pips(ros.wmods[k])}</b><small>${m.desc} · оружейные апы приносят больше славы за попадания</small></div>${buyBtn(find('wmod', k))}</div>`).join('') +
           `<h4>Оружейный рынок <small>тюнинг при смене пушки сбрасывается, старая продаётся за полцены</small></h4><div class="g-shop">` +
           WEAPONS.slice().sort((a, b) => a.price - b.price).map(x => {
             const o = find('weapon', x.id), r = R[x.rarity];
@@ -1417,7 +1417,7 @@
           }).join('') + '</div>';
       } else {
         body = `<p class="g-hint">Специалисты работают на вас каждую гонку. Три уровня у каждого.</p>` +
-          Object.entries(window.ECON.crew).map(([k, c]) => `<div class="g-item crew"><div class="g-ic">${c.icon}</div><div class="g-main"><b>${c.name} ${pips(ros.crew[k])}</b><small>${c.desc}</small></div>${buyBtn(find('crew', k), 'Нанять')}</div>`).join('');
+          Object.entries(window.ECON.crew).map(([k, c]) => `<div class="g-item crew"><div class="g-ic">${c.icon}</div><div class="g-main"><b><span class="g-nm">${c.name}</span>${pips(ros.crew[k])}</b><small>${c.desc}</small></div>${buyBtn(find('crew', k), 'Нанять')}</div>`).join('');
       }
 
       $('#garageBody').innerHTML = `
@@ -1588,7 +1588,7 @@
       if (w.effect.strip) effects.push('срыв сцепления');
       const pips = l => `<span class="lv">${[0, 1, 2].map(i => `<i class="${i < l ? 'on' : ''}"></i>`).join('')}</span>`;
       $('#dossierBody').innerHTML = `
-        <div class="ds-top" style="--rc:${RN(id).color}">${faceId(id, 104)}<div class="ds-name"><small>№${id + 1}${id === d.human ? ' · ВЫ' : ''}</small><b>${RN(id).name}</b><div class="rc-tags">${tierBadge(ros.tier)}</div>${ros.face ? `<div class="ds-moods" title="Как выглядит при высокой, средней и низкой морали">${[85, 50, 15].map(m => window.Faces.svg(ros.face, m, 34, RN(id).color)).join('')}</div>` : ''}</div>
+        <div class="ds-top" style="--rc:${RN(id).color}">${faceId(id, 104)}<div class="ds-name"><small>№${id + 1}${id === d.human ? ' · ВЫ' : ''}</small><b>${RN(id).name}</b><div class="rc-tags">${tierBadge(ros.tier)}</div></div>
           <div class="ds-kpi"><div><b>${pos}</b><small>место в таблице</small></div><div><b>${d.points[id]}</b><small>очков</small></div><div><b>${d.wins[id]}/${d.podiums[id]}</b><small>побед / подиумов</small></div><div><b>★${d.fame[id]}</b><small>слава</small></div></div></div>
         ${ros.perks.length ? `<div class="ds-perks">${ros.perks.map(p => { const P = window.PERKS[p]; return `<div class="ds-perk ${P.behavior ? 'beh' : ''}"><i>${P.icon}</i><div><b>${P.name}</b>${P.behavior ? ' <small class="beh-l">поведение</small>' : ''}<p>${P.desc}</p></div></div>`; }).join('')}</div>` : ''}
         <div class="ds-grid">
@@ -1597,8 +1597,8 @@
           <section><h4>Оружие</h4><div class="ds-w" style="--wc:${w.color};--rr:${R.color}">${Art.weaponIcon(w, 40)}<div><b>${w.name}</b><small style="color:${R.color}">${R.name}</small><p>${w.desc}</p></div></div>
             <div class="w-stats"><span><em>Урон</em>${Math.round(w.dmg * CFG.dmgMul)}</span><span><em>Дальность</em>${w.range} · ${DIR[w.dir]}</span><span><em>Точность</em>${Math.round(w.acc * 100)}%</span><span><em>Заряд</em>${w.charge}</span></div>
             <div class="w-eff">${effects.map(e => `<i>${e}</i>`).join('') || '<i>без эффекта</i>'}</div>
-            <div class="ds-tune">${Object.entries(window.ECON.wmods).map(([k, m]) => `<span>${m.icon} ${m.name} ${pips(ros.wmods[k])}</span>`).join('')}</div>
-            <h4>Команда</h4><div class="ds-crew">${Object.entries(window.ECON.crew).map(([k, c]) => `<div title="${c.desc}" class="${ros.crew[k] ? '' : 'off'}"><span>${c.icon}</span>${c.name} ${pips(ros.crew[k])}</div>`).join('')}</div></section>
+            <div class="ds-tune">${Object.entries(window.ECON.wmods).map(([k, m]) => `<div><span>${m.icon}</span><span>${m.name}</span>${pips(ros.wmods[k])}</div>`).join('')}</div>
+            <h4>Команда</h4><div class="ds-crew">${Object.entries(window.ECON.crew).map(([k, c]) => `<div title="${c.desc}" class="${ros.crew[k] ? '' : 'off'}"><span>${c.icon}</span><span>${c.name}</span>${pips(ros.crew[k])}</div>`).join('')}</div></section>
         </div>
         <section><h4>История сезона <small>среднее место ${avgPlace} · попаданий ${tot.hits}/${tot.shots} · урон ${tot.dmg} · аварий ${tot.crashes} · срывов в давке ${tot.nerves} · заработано ★${tot.fame}</small></h4>
           ${hist.length ? `<table class="ds-hist"><thead><tr><th>Этап</th><th>Место</th><th>Очки</th><th>В таблице</th><th>Слава</th><th>Мораль</th><th>Попад.</th><th>Урон</th><th>Аварии</th></tr></thead><tbody>${hist.map(x => `<tr><td>${flagSvg(x.def.id, 20)} ${x.i + 1}. ${x.def.name}${x.h.rain ? ' 🌧' : ''}</td><td><b>${x.r.place}</b>${x.r.dnf ? ' <small class="dnf">DNF</small>' : ''}</td><td class="pts">${x.r.pts ? '+' + x.r.pts : '—'}</td><td>${x.r.rank || '—'}${x.r.rankShift ? ` <small class="${x.r.rankShift > 0 ? 'up' : 'down'}">${x.r.rankShift > 0 ? '▲' : '▼'}${Math.abs(x.r.rankShift)}</small>` : ''}</td><td class="fame">★${x.r.earned || 0}</td><td>${x.r.mo ? `${x.r.mo.after} <small class="${x.r.mo.delta > 0 ? 'up' : x.r.mo.delta < 0 ? 'down' : ''}">${x.r.mo.delta > 0 ? '+' : ''}${x.r.mo.delta || ''}</small>` : '—'}</td><td>${x.r.hits !== undefined ? x.r.hits + '/' + x.r.shots : '—'}</td><td>${x.r.dmg !== undefined ? x.r.dmg : '—'}</td><td>${x.r.crashes !== undefined ? x.r.crashes : '—'}</td></tr>`).join('')}</tbody></table>` : '<p class="g-hint">Сезон ещё не начался.</p>'}
