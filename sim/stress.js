@@ -36,6 +36,7 @@ for (let k = 0; k < N; k++) {
         if (r.speed < 0) fail('отрицательная скорость', race, r);
         if (r.nitro > CFG.nitroMax + 1e-9 || r.charge > r.weapon.charge + 1e-9 || r.shield > CFG.shieldMax + 1e-9 || r.grip > CFG.gripMax + 1e-9) fail('ресурс выше максимума', race, r);
         if (r.skip < 0) fail('skip < 0', race, r);
+        if (!(r.morale >= 0 && r.morale <= 100)) fail('мораль вне 0..100', race, r);
         if (!r.board.hasMove()) fail('на поле нет ходов', race, r);
       }
       if (res && res.match && !res.match.final.every(Boolean)) fail('дыра на поле', race, res.racer);

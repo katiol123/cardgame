@@ -656,3 +656,15 @@ body.your-turn .board { cursor: pointer; touch-action: none; }
 .perk-big { font-size: 26px; width: 40px; text-align: center; }
 .beh-l { color: #ff5470; font-size: 10px; border: 1px solid rgba(255,51,85,.5); border-radius: 5px; padding: 0 4px; }
 .g-eff { color: #7af0a8; font-weight: 800; cursor: help; white-space: nowrap; }
+
+/* мораль и давка */
+.c-mor { color: #c9a6ff; }
+.mo .fill { background: linear-gradient(90deg, #6b4bd6, #c9a6ff); }
+.results-card td.mo { white-space: nowrap; }
+.results-card td.mo.up small { color: #7af0a8; }
+.results-card td.mo.down small { color: #ff7a8a; }
+.board-panel.crowded { animation: crowd 1.6s ease-in-out infinite; }
+@keyframes crowd { 0%, 100% { border-top-color: var(--rc, #444); } 50% { border-top-color: #c9a6ff; box-shadow: 0 0 0 1px rgba(201,166,255,.4), 0 0 26px rgba(201,166,255,.25); } }
+.board-panel.crowded .board-shell { animation: jitter 2.4s infinite; }
+@keyframes jitter { 0%, 90%, 100% { transform: none; } 92% { transform: translate(-1px, 1px); } 94% { transform: translate(1px, -1px); } 96% { transform: translate(-1px, 0); } }
+.gchip.crowd-warn { animation: actpulse 1s infinite; }

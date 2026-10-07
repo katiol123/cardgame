@@ -169,6 +169,7 @@
           weapon: ros ? G.makeWeapon(ros.weapon, ros.wmods) : opts.weapon ? opts.weapon(id) : pool[id],
           crew: Object.assign({ mech: 0, gun: 0, armor: 0, nitro: 0 }, ros && ros.crew), fame: 0, showFame: 0,
           perks: (ros && ros.perks) || [], tier: ros && ros.tier,
+          morale: ros && typeof ros.morale === 'number' ? ros.morale : 50, nerves: 0,
           board: new G.Board(this.rand),
           hp: CFG.MAX_HP, shield: 0, speed: 0, frac: 0,
           pos: -Math.floor(slot / 2), lane: slot % 2,
@@ -259,7 +260,7 @@
       if (!targets.length) return null;
       r.charge = 0; r.shots++;
       const hits = targets.map(t => {
-        let acc = w.acc * (this.mods.accMul || 1);
+        let acc = w.acc * (this.mods.accMul || 1) * (1 + (r.morale - 50) / 500); // мораль: твёрдость руки ±10%
         if (this.track.cell(r.pos).tunnel || this.track.cell(t.pos).tunnel) acc *= 0.6;
         const chance = acc * (1 - F.dodge(t));
         const hit = this.rand() < chance;
@@ -299,6 +300,20 @@
       if (has(r, 'drafter') && this.racers.some(o => o !== r && !o.finished && o.pos - r.pos >= 1 && o.pos - r.pos <= 3)) {
         r.speed = Math.min(vm + 0.5, r.speed + 0.5);
         this.fx.push({ id: r.id, text: '🌀 слипстрим', color: '#9fe8ff' });
+      }
+      // давка: проверка морали
+      let nerve = null;
+      const crowd = this.crowdAround(r);
+      if (crowd >= 2 && this.round >= CFG.crowdFrom) {
+        const p = Math.min(CFG.crowdMaxP, CFG.crowdBase * (crowd - 1) * (100 - r.morale) / 50) * (has(r, 'cold') ? 0.5 : 1);
+        if (this.rand() < p) {
+          const loss = CFG.crowdLoss[0] + this.rand() * (CFG.crowdLoss[1] - CFG.crowdLoss[0]), breakdown = this.rand() < 0.25;
+          r.speed = Math.max(0, r.speed - loss);
+          if (breakdown) r.grip = Math.max(0, r.grip - 3);
+          r.nerves++;
+          nerve = { loss, breakdown };
+          this.fx.push({ id: r.id, text: breakdown ? '😱 НЕРВНЫЙ СРЫВ' : '😰 ДРОГНУЛ!', color: '#c9a6ff' });
+        }
       }
       let boost = 0;
       if (r.nitro >= CFG.nitroMax && AI.useNitro(this, r)) { boost = F.nitroBoost(r); r.nitro = 0; }
@@ -357,7 +372,14 @@
         this.finishOrder.push(r.id); finished = true;
         if (!this.firstFinishRound) this.firstFinishRound = this.round;
       }
-      return { from, to, cells, boost, brake, sev, skid, cellFx, picked, finished };
+      return { from, to, cells, boost, brake, sev, skid, cellFx, picked, nerve, crowd, finished };
+    }
+
+    // сколько «давления» вокруг: соседи в ±1 клетке, агрессор давит за двоих
+    crowdAround(r) {
+      let n = 0;
+      this.racers.forEach(o => { if (o !== r && !o.finished && !o.skip && Math.abs(o.pos - r.pos) <= 1) n += has(o, 'aggro') ? 2 : 1; });
+      return n;
     }
 
     jackpot(r) {

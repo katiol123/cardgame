@@ -84,7 +84,12 @@
     }
 
     loop(now) {
-      const dt = Math.min(0.05, (now - this.last) / 1000) * this.timeScale;
+      try { this.frame(now); } catch (e) { console.error(e); this.parts.length = 0; }
+      requestAnimationFrame(this.loop);
+    }
+
+    frame(now) {
+      const dt = Math.max(0, Math.min(0.05, (now - this.last) / 1000)) * this.timeScale;
       this.last = now;
       const ctx = this.ctx;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -120,9 +125,9 @@
         } else if (p.shape === 'ring') {
           ctx.globalAlpha = (1 - k) * 0.9;
           ctx.strokeStyle = p.color; ctx.lineWidth = p.width * (1 - k) * s + 0.5;
-          ctx.beginPath(); ctx.arc(q.x, q.y, (p.r0 + (p.r1 - p.r0) * (1 - Math.pow(1 - k, 3))) * s, 0, 6.283); ctx.stroke();
+          ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(0.1, (p.r0 + (p.r1 - p.r0) * (1 - Math.pow(1 - k, 3))) * s), 0, 6.283); ctx.stroke();
         } else if (p.shape === 'flash') {
-          const r = p.r1 * s * (0.6 + k * 0.6);
+          const r = Math.max(0.1, p.r1 * s * (0.6 + k * 0.6));
           const g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, r);
           g.addColorStop(0, 'rgba(255,255,255,' + (1 - k) + ')');
           g.addColorStop(0.3, p.color);
@@ -133,7 +138,7 @@
           ctx.globalCompositeOperation = 'source-over';
           ctx.globalAlpha = (1 - k) * 0.35;
           ctx.fillStyle = p.color + (1 - k) * 0.6 + ')';
-          ctx.beginPath(); ctx.arc(q.x, q.y, p.size * s * (1 + k * 1.5), 0, 6.283); ctx.fill();
+          ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(0.1, p.size * s * (1 + k * 1.5)), 0, 6.283); ctx.fill();
           ctx.globalCompositeOperation = 'lighter';
         } else if (p.shape === 'beam') {
           const q2 = this.P(p.x2, p.y2);
@@ -165,7 +170,6 @@
       }
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
-      requestAnimationFrame(this.loop);
     }
   }
 

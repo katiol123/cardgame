@@ -7,7 +7,8 @@
 
   function ensure(ros) {
     ros.wmods = Object.assign({ cal: 0, mag: 0, aim: 0 }, ros.wmods);
-    ros.crew = Object.assign({ mech: 0, gun: 0, armor: 0, nitro: 0 }, ros.crew);
+    ros.crew = Object.assign({ mech: 0, gun: 0, armor: 0, nitro: 0, psy: 0 }, ros.crew);
+    if (typeof ros.morale !== 'number') ros.morale = 50;
     ros.perks = ros.perks || [];
     return ros;
   }
@@ -99,7 +100,8 @@
       const tier = rollTier(rand), [lo, hi] = G.TIERS[tier].sum;
       const total = lo + Math.floor(rand() * (hi - lo + 1));
       const perks = rand() < G.PERK_CHANCE ? [keys[Math.floor(rand() * keys.length)]] : [];
-      return ensure({ tier, stats: G.rollStats(rand, total), weapon: ws[i], perks });
+      const morale = Math.round(G.CFG.moraleStart[tier] + (rand() * 20 - 10));
+      return ensure({ tier, stats: G.rollStats(rand, total), weapon: ws[i], perks, morale });
     });
     // один (и только один) из обладателей перка получает второй, другой
     const holders = roster.filter(r => r.perks.length);
@@ -110,8 +112,20 @@
     }
     return roster;
   }
+  // Мораль после гонки: результат, затем плавное возвращение к 50 (психолог меняет скорость)
+  function moraleAfter(ros, place, crashes) {
+    const C = G.CFG, before = ros.morale, lvl = (ros.crew && ros.crew.psy) || 0;
+    let m = before + (8.5 - place) * C.moralePlace - C.moraleCrash * crashes;
+    m = Math.max(0, Math.min(100, m));
+    let k = C.moraleRegress;
+    if (m > 50) k *= 1 - (G.CFG.psyDown || 0.22) * lvl;   // после успеха кураж держится дольше
+    else k *= 1 + (G.CFG.psyUp || 0.35) * lvl;          // после неудачи быстрее приходит в себя
+    m += (50 - m) * k;
+    ros.morale = Math.max(0, Math.min(100, Math.round(m)));
+    return { before, after: ros.morale, delta: ros.morale - before };
+  }
   const statSum = ros => ros.stats.accel + ros.stats.top + ros.stats.handling;
 
-  G.Gen = { rollRoster, rollTier, statSum };
+  G.Gen = { rollRoster, rollTier, statSum, moraleAfter };
   G.Shop = { ensure, options, apply, label, aiSpend, sellValue, weaponOf, RANK, STAT_NAME };
 })(typeof window !== 'undefined' ? window : globalThis);
