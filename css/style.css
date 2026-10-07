@@ -672,3 +672,21 @@ body.your-turn .board { cursor: pointer; touch-action: none; }
 .crow .rk { position: absolute; left: -2px; top: -3px; font-style: normal; font-size: 9px; font-weight: 800; padding: 0 3px; border-radius: 4px; cursor: help; }
 .crow .rk.up { color: #04220f; background: #2fdc74; }
 .crow .rk.down { color: #2a0008; background: #ff5470; }
+
+/* новости паддока */
+.news { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,210,63,.22); font-size: 13px; }
+.news h4 { margin: 0 0 8px; font: 15px var(--head); color: var(--gold); }
+.nh-list { display: grid; gap: 5px; max-height: 260px; overflow: auto; }
+.nh { display: flex; gap: 10px; align-items: flex-start; padding: 6px 10px; border-radius: 10px; background: rgba(255,255,255,.035); animation: tiUp .5s both; animation-delay: calc(1.4s + var(--i) * .12s); }
+.g-body ~ .news .nh, .garage-card .nh { animation-delay: calc(var(--i) * .06s); }
+.nh i { font-style: normal; font-size: 16px; line-height: 1.2; }
+.nh span { color: #dfe5f1; line-height: 1.35; }
+.nb-wrap { margin-top: 8px; }
+.nb-wrap summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 4px 0; }
+.nb-wrap summary:hover { color: #fff; }
+.nb { display: grid; grid-template-columns: auto auto 1fr; gap: 8px; align-items: baseline; padding: 4px 8px; border-bottom: 1px solid var(--line); font-size: 12px; }
+.nb small { color: var(--gold); }
+.nb span { color: var(--muted); }
+.ti-map .news { max-width: 760px; }
+@media (max-width: 720px) { .nb { grid-template-columns: 1fr; gap: 2px; } }
+.ti-map:has(.news) svg { max-height: 50vh; }

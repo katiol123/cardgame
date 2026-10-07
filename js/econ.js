@@ -57,7 +57,7 @@
   // Траты ИИ: немного случайности, тяга к редкому оружию, иногда копит
   function aiSpend(ros, wallet, rand) {
     ensure(ros);
-    const bought = [];
+    const bought = [], items = [];
     const curRank = () => RANK[weaponOf(ros).rarity];
     for (let n = 0; n < 4; n++) {
       const all = options(ros);
@@ -79,8 +79,9 @@
       apply(ros, best);
       wallet -= best.price;
       bought.push(label(best));
+      items.push({ label: label(best), type: best.type, key: best.key, price: best.price });
     }
-    return { wallet, bought };
+    return { wallet, bought, items };
   }
 
   /* Генерация состава: уровень мастерства, перки, оружие */

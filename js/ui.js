@@ -840,7 +840,7 @@
       trackFx.smoke(p.x, p.y, 6, { size: 8 });
       trackFx.burst(p.x, p.y, '#ffd23f', 6, { speed: 90, life: 0.4, g: 0 });
       if (res.stunned) { trackFx.text(p.x, p.y - 22, '😵 СТУПОР', '#c9a6ff', { size: 14 }); if (obs()) log(`${nm(r)} в ступоре после нервного срыва — пропускает ход`, 'warn'); }
-      if (res.repaired) { trackFx.text(p.x, p.y - 22, 'СНОВА В СТРОЮ', '#2fdc74', { size: 14 }); log(`${nm(r)} починил мотоцикл и возвращается в гонку`, 'good'); }
+      if (res.repaired) { trackFx.text(p.x, p.y - 22, 'СНОВА В СТРОЮ', '#2fdc74', { size: 14 }); log(`${nm(r)} снова в гонке после ремонта`, 'good'); }
       await wait(obs() ? 700 : 160);
       return;
     }
@@ -948,7 +948,7 @@
     },
     create(roster, human) {
       const z = () => Array(16).fill(0);
-      Champ.d = { v: 1, roster, human, stage: 0, points: z(), wins: z(), podiums: z(), best: Array(16).fill(99), history: [], weather: null, fame: z(), news: [] };
+      Champ.d = { v: 1, roster, human, stage: 0, points: z(), wins: z(), podiums: z(), best: Array(16).fill(99), history: [], weather: null, fame: z(), news: null };
       Champ.save();
     },
     get done() { return Champ.d && Champ.d.stage >= window.TRACKS.length; },
@@ -967,6 +967,7 @@
     award(race) {
       const d = Champ.d, row = {};
       const rankBefore = Champ.standings(); // позиции в таблице до этапа
+      Champ.rankBefore = rankBefore;
       race.racers.forEach(r => {
         const pts = window.POINTS_TABLE[r.place - 1] || 0;
         d.points[r.id] += pts;
@@ -996,7 +997,7 @@
       try {
         const s = JSON.parse(localStorage.getItem(SAVE_KEY));
         if (!s || s.v !== 1) return null;
-        s.fame = s.fame || Array(16).fill(0); s.news = s.news || [];
+        s.fame = s.fame || Array(16).fill(0); if (Array.isArray(s.news)) s.news = null;
         s.roster.forEach(r => window.Shop.ensure(r));
         return s;
       } catch (e) { return null; }
@@ -1283,7 +1284,7 @@
             <path d="${tr.path}" class="ti-glow"/><path d="${tr.path}" class="ti-road" pathLength="1000"/>
             ${tr.labels.map((l, i) => { const c = tr.cells[l.cell]; return `<g class="ti-lbl" style="--d:${1.2 + i * 0.12}s" transform="translate(${c.x.toFixed(0)} ${c.y.toFixed(0)})"><circle r="7"/><text y="-14">${l.text}</text></g>`; }).join('')}
             <circle r="10" class="ti-comet"><animateMotion dur="5s" repeatCount="indefinite" path="${tr.path}"/></circle>
-          </svg></div>
+          </svg>${newsHtml(d)}</div>
           <div class="ti-info">
             <div class="ti-stage">ЭТАП ${d.stage + 1} <span>/ ${window.TRACKS.length}</span></div>
             <div class="ti-country">${flagSvg(def.id, 42)}<span>${def.country}</span></div>
@@ -1292,7 +1293,6 @@
             <div class="ti-facts">${def.facts.map(f => `<span>${f}</span>`).join('')}<span>${tr.N} клеток × ${tr.laps} ${tr.laps < 5 ? 'круга' : 'кругов'}</span></div>
             <p class="ti-desc">${def.desc}</p>
             <div class="ti-feats">${def.features.map(([ic, t]) => `<div><i>${ic}</i>${t}</div>`).join('')}<div class="wx ${state.rain ? 'wet' : ''}"><i>${wet[0]}</i>${wet[1]}</div></div>
-            ${d.news && d.news.length ? `<div class="ti-news"><b>📰 Паддок:</b> ${d.news.slice(0, 3).map(n => `${nmId(n.id)} — ${n.text}`).join(' · ')}</div>` : ''}
             <div class="ti-grid">${me ? `Ваша позиция на старте: <b>${me}</b> из 16` : `Поул-позиция: ${nmId(grid[0])}`}${leader >= 0 ? ` · лидер чемпионата ${nmId(leader)} стартует последним` : ' · стартовая решётка по жребию'}</div>
             <div class="ti-btns"><button class="btn big primary" id="tiGo">НА СТАРТ!</button>${d.stage ? '<button class="btn big" id="tiTable">🏆 Таблица</button>' : ''}</div>
           </div>
@@ -1339,7 +1339,8 @@
       st.map(r => `<tr class="${r.human ? 'me' : ''}"><td>${r.place}</td><td>${nm(r)}${r.dnf ? ' <small class="dnf">не финишировал</small>' : ''}</td><td class="pts">${row[r.id].pts ? '+' + row[r.id].pts : '—'}</td><td class="fame" title="призовые ★${row[r.id].prize} · в гонке ★${row[r.id].fame - row[r.id].show} · шоу ★${row[r.id].show}${row[r.id].press ? ' · любимец прессы ×1,4' : ''}">★${row[r.id].earned}${row[r.id].press ? ' 📸' : ''}</td><td class="mo ${row[r.id].mo.delta > 0 ? 'up' : row[r.id].mo.delta < 0 ? 'down' : ''}" title="${moraleTip(row[r.id].mo)}">${moraleEmoji(row[r.id].mo.after)} ${row[r.id].mo.after} <small>${row[r.id].mo.delta > 0 ? '▲+' + row[r.id].mo.delta : row[r.id].mo.delta < 0 ? '▼' + row[r.id].mo.delta : ''}</small></td><td>${r.hits}/${r.shots}</td><td>${Math.round(r.dmgDealt)}</td><td>${r.crashes}</td></tr>`).join('') +
       `</tbody></table></div><div><h3>Чемпионат</h3>${champTableHtml(row)}</div></div>`;
     const last = Champ.done;
-    if (!last) aiShopping();
+    makeNews(race, row, last ? [] : aiShopping());
+    Champ.save();
     const me = Champ.d.human;
     $('#btnNext').textContent = last ? '🏆 Итоги чемпионата' : `Следующий этап → ${window.TRACKS[Champ.d.stage].name}`;
     if (!last && me >= 0) $('#btnNext').textContent = `🔧 В гараж (★${Champ.d.fame[me]})`;
@@ -1393,13 +1394,13 @@
         body = `<p class="g-hint">Специалисты работают на вас каждую гонку. Три уровня у каждого.</p>` +
           Object.entries(window.ECON.crew).map(([k, c]) => `<div class="g-item crew"><div class="g-ic">${c.icon}</div><div class="g-main"><b>${c.name} ${pips(ros.crew[k])}</b><small>${c.desc}</small></div>${buyBtn(find('crew', k), 'Нанять')}</div>`).join('');
       }
-      const news = (d.news || []).filter(n => n.id !== id);
+
       $('#garageBody').innerHTML = `
         <div class="g-top" style="--rc:${RN(id).color}">${helmetId(id, 58)}<div><small>Гараж команды</small><b>${RN(id).name}</b><div class="rc-tags">${tierBadge(ros.tier)}${perkBadges(ros.perks, true)}<span class="perk" title="Мораль">${moraleEmoji(ros.morale)} мораль ${ros.morale}</span></div></div>
           <div class="g-fame"><small>Слава</small><b id="gFame">★ ${fame}</b></div></div>
         <div class="g-tabs">${[['bike', '🏍 Байк'], ['weapon', '🔫 Оружие'], ['crew', '👥 Команда']].map(([k, t]) => `<button class="g-tab ${Garage.tab === k ? 'on' : ''}" data-tab="${k}">${t}</button>`).join('')}</div>
         <div class="g-body">${body}</div>
-        ${news.length ? `<div class="g-news"><h4>📰 Новости паддока</h4>${news.slice(0, 8).map(n => `<div>${nmId(n.id)}: ${n.text}</div>`).join('')}</div>` : ''}`;
+        ${newsHtml(d, { skipId: id, open: true })}`;
       document.querySelectorAll('#garageBody .g-tab').forEach(b => { b.onclick = () => { Garage.tab = b.dataset.tab; Garage.render(); }; });
       document.querySelectorAll('#garageBody .buy[data-type]').forEach(b => { b.onclick = () => Garage.buy(b); });
     },
@@ -1425,17 +1426,59 @@
 
   // покупки ИИ между этапами
   function aiShopping() {
-    const d = Champ.d, rnd = Math.random;
-    d.news = [];
+    const d = Champ.d, rnd = Math.random, buys = [];
     d.roster.forEach((ros, id) => {
       if (id === d.human) return;
       const res = window.Shop.aiSpend(ros, d.fame[id], rnd);
       d.fame[id] = res.wallet;
-      res.bought.forEach(text => d.news.push({ id, text }));
+      if (res.items.length) buys.push({ id, items: res.items, spent: res.items.reduce((a, b) => a + b.price, 0) });
     });
-    // самые громкие новости — про оружие
-    d.news.sort((a, b) => (/«/.test(b.text) ? 1 : 0) - (/«/.test(a.text) ? 1 : 0));
-    Champ.save();
+    buys.sort((a, b) => b.spent - a.spent);
+    return buys;
+  }
+
+  // ---------- новости паддока ----------
+  const plural = (n, a, b, c) => { const m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 10 || h >= 20) ? b : c; };
+  function makeNews(race, row, buys) {
+    const d = Champ.d, H = [], def = Champ.def ? window.TRACKS[d.stage - 1] : null;
+    const by = (f, dir) => race.racers.slice().sort((a, b) => dir * (f(b) - f(a)))[0];
+    const winner = race.racers.find(r => r.place === 1);
+    const w = d.wins[winner.id];
+    H.push({ ic: '🏆', t: `${nmId(winner.id)} выигрывает этап «${def.name}»${w >= 2 ? ` — уже ${w}-я победа в сезоне!` : '!'}` });
+    const st = Champ.standings(), lead = st[0], prev = Champ.rankBefore && Champ.rankBefore[0];
+    const gap = d.points[lead] - d.points[st[1]];
+    if (d.stage >= 2 && prev !== lead) H.push({ ic: '👑', t: `Смена лидера! ${nmId(lead)} возглавляет чемпионат (${d.points[lead]} оч.)` });
+    else H.push({ ic: '👑', t: `${nmId(lead)} ${d.stage > 1 ? 'сохраняет' : 'захватывает'} лидерство: ${d.points[lead]} оч., отрыв ${gap}` });
+    const up = by(r => row[r.id].rankShift, 1), down = by(r => row[r.id].rankShift, -1);
+    if (row[up.id].rankShift >= 2) H.push({ ic: '📈', t: `${nmId(up.id)} взлетает в таблице на ${row[up.id].rankShift} ${plural(row[up.id].rankShift, 'позицию', 'позиции', 'позиций')} — мораль ${row[up.id].mo.after}` });
+    if (row[down.id].rankShift <= -2) H.push({ ic: '📉', t: `${nmId(down.id)} теряет в таблице ${-row[down.id].rankShift} ${plural(-row[down.id].rankShift, 'позицию', 'позиции', 'позиций')}` });
+    const dmg = by(r => r.dmgDealt, 1);
+    if (dmg.dmgDealt > 0) H.push({ ic: '💥', t: `Главный разрушитель этапа — ${nmId(dmg.id)}: ${Math.round(dmg.dmgDealt)} урона, ${dmg.hits} ${plural(dmg.hits, 'попадание', 'попадания', 'попаданий')}` });
+    const cr = by(r => r.crashes, 1);
+    if (cr.crashes >= 2) H.push({ ic: '🚑', t: `${nmId(cr.id)} ${cr.crashes === 2 ? 'дважды' : cr.crashes + ' раза'} за этап разбивает мотоцикл` });
+    else if (cr.crashes === 1) { const n = race.racers.filter(r => r.crashes).length; H.push({ ic: '🚑', t: `Аварий на этапе: ${n}. Среди пострадавших — ${nmId(cr.id)}` }); }
+    const nv = by(r => r.nerves, 1);
+    if (nv.nerves >= 2) H.push({ ic: '😱', t: `${nmId(nv.id)} не выдерживает давки: ${nv.nerves} ${plural(nv.nerves, 'срыв', 'срыва', 'срывов')} за этап` });
+    const hi = by(r => row[r.id].mo.after, 1), lo = by(r => row[r.id].mo.after, -1);
+    if (row[hi.id].mo.after >= 75) H.push({ ic: '🔥', t: `${nmId(hi.id)} на кураже — мораль ${row[hi.id].mo.after}` });
+    if (row[lo.id].mo.after <= 30) H.push({ ic: '😞', t: `${nmId(lo.id)} падает духом — мораль ${row[lo.id].mo.after}` });
+    const show = by(r => r.showFame, 1);
+    if (show.showFame >= 20) H.push({ ic: '🎉', t: `Шоу этапа: ${nmId(show.id)} зарабатывает ★${show.showFame} славы уже после финиша` });
+    buys.forEach(b => b.items.filter(i => i.type === 'weapon').forEach(i => {
+      const wp = WEAPONS.find(x => x.id === i.key);
+      if (window.Shop.RANK[wp.rarity] >= 1) H.push({ ic: '💰', t: `${nmId(b.id)} покупает ${window.RARITY[wp.rarity].name.toLowerCase()} оружие: ${wp.name}` });
+    }));
+    const next = window.TRACKS[d.stage];
+    if (next) H.push({ ic: '🔮', t: `Впереди — ${next.name}. ${next.features[0][1]}` });
+    d.news = { stage: d.stage, headlines: H, buys };
+  }
+  const newsOf = d => (d.news && !Array.isArray(d.news) ? d.news : { headlines: [], buys: [] });
+  function newsHtml(d, opts) {
+    const n = newsOf(d), skip = opts && opts.skipId;
+    const heads = n.headlines.map((h, i) => `<div class="nh" style="--i:${i}"><i>${h.ic}</i><span>${h.t}</span></div>`).join('');
+    const buys = n.buys.filter(b => b.id !== skip).map(b => `<div class="nb"><b>${nmId(b.id)}</b> <small>★${b.spent}</small><span>${b.items.map(i => i.label).join(' · ')}</span></div>`).join('');
+    if (!heads && !buys) return '';
+    return `<div class="news">${heads ? `<h4>📰 Новости паддока</h4><div class="nh-list">${heads}</div>` : ''}${buys ? `<details class="nb-wrap" ${opts && opts.open ? 'open' : ''}><summary>🛒 Покупки соперников (${n.buys.filter(b => b.id !== skip).length})</summary>${buys}</details>` : ''}</div>`;
   }
 
   const Final = {
