@@ -910,6 +910,13 @@
       log(`${nm(r)} влетает в поворот на ${fmt(mv.skid.over + mv.skid.lim)} при пределе ${fmt(mv.skid.lim)} — занос, −${mv.skid.dmg}`, 'warn');
       if (mv.skid.crashed) FXS.crash(r.id);
     }
+    if (mv.ram) {
+      const pt = TV.xy(mv.ram.target.id);
+      trackFx.flash(pt.x, pt.y, '#ff9a3c', 40, 0.35); trackFx.burst(pt.x, pt.y, '#ffd23f', 18, { speed: 220, life: 0.5, g: 100 });
+      TV.tokens[mv.ram.target.id].shake = 12; TV.tokens[r.id].shake = 8;
+      if (mv.ram.crashed) FXS.crash(mv.ram.target.id);
+      if (mv.ram.selfCrashed) FXS.crash(r.id);
+    }
     if (mv.cellFx) {
       const k = mv.cellFx.kind;
       trackFx.ring(p1.x, p1.y, Art.CELL_COLOR[k], 30, { life: 0.5 });
@@ -1248,7 +1255,7 @@
   };
   const moraleEmoji = m => m >= 80 ? '🤩' : m >= 60 ? '😀' : m >= 40 ? '😐' : m >= 20 ? '😟' : '😰';
   const tierBadge = t => t ? `<span class="tier t-${t}" title="Уровень мастерства: ${window.TIERS[t].name}">${window.TIERS[t].icon} ${window.TIERS[t].name}</span>` : '';
-  const perkBadges = (perks, full) => (perks || []).map(p => `<span class="perk ${window.PERKS[p].behavior ? 'beh' : ''}" title="${window.PERKS[p].name}: ${window.PERKS[p].desc}">${window.PERKS[p].icon}${full ? ' ' + window.PERKS[p].name : ''}</span>`).join('');
+  const perkBadges = (perks, full) => (perks || []).map(p => `<span class="perk ${window.PERKS[p].behavior ? 'beh' : ''} ${window.PERKS[p].ambiguous ? 'amb' : ''}" title="${window.PERKS[p].name}: ${window.PERKS[p].desc}">${window.PERKS[p].icon}${full ? ' ' + window.PERKS[p].name : ''}${window.PERKS[p].ambiguous && full ? ' ⚖' : ''}</span>`).join('');
   function racerPill(id, ros) {
     const w = WEAPONS.find(x => x.id === ros.weapon);
     return `<div class="pick ${ros.perks.length > 1 ? 'double' : ''}" data-id="${id}" style="--rc:${RN(id).color}">${faceRos(id, ros, 54)}<div class="pk-main"><b>${RN(id).name} ${tierBadge(ros.tier)}</b>
@@ -1590,7 +1597,7 @@
       $('#dossierBody').innerHTML = `
         <div class="ds-top" style="--rc:${RN(id).color}">${faceId(id, 104)}<div class="ds-name"><small>№${id + 1}${id === d.human ? ' · ВЫ' : ''}</small><b>${RN(id).name}</b><div class="rc-tags">${tierBadge(ros.tier)}</div></div>
           <div class="ds-kpi"><div><b>${pos}</b><small>место в таблице</small></div><div><b>${d.points[id]}</b><small>очков</small></div><div><b>${d.wins[id]}/${d.podiums[id]}</b><small>побед / подиумов</small></div><div><b>★${d.fame[id]}</b><small>слава</small></div></div></div>
-        ${ros.perks.length ? `<div class="ds-perks">${ros.perks.map(p => { const P = window.PERKS[p]; return `<div class="ds-perk ${P.behavior ? 'beh' : ''}"><i>${P.icon}</i><div><b>${P.name}</b>${P.behavior ? ' <small class="beh-l">поведение</small>' : ''}<p>${P.desc}</p></div></div>`; }).join('')}</div>` : ''}
+        ${ros.perks.length ? `<div class="ds-perks">${ros.perks.map(p => { const P = window.PERKS[p]; return `<div class="ds-perk ${P.behavior ? 'beh' : ''}"><i>${P.icon}</i><div><b>${P.name}</b>${P.behavior ? ' <small class="beh-l">поведение</small>' : ''}${P.ambiguous ? ' <small class="amb-l">⚖ неоднозначный</small>' : ''}<p>${P.desc}</p></div></div>`; }).join('')}</div>` : ''}
         <div class="ds-grid">
           <section><h4>Байк</h4>${statRow('accel', 'Разгон', 'c-acc', 's-acc')}${statRow('top', 'Макс. скорость', 'c-top', 's-top')}${statRow('handling', 'Маневренность', 'c-han', 's-han')}
             <h4>Мораль ${moraleEmoji(ros.morale)} ${ros.morale}</h4>${chart}<small class="ds-note">точки — мораль после каждого этапа, линия — уровень 50</small></section>
@@ -1644,7 +1651,7 @@
       <section><h3>Слава ★ и гараж</h3><p>Слава — валюта спонсоров. Её приносят: <b>призовые</b> за место (★${window.ECON.prize[0]} за победу … ★${window.ECON.prize[15]} за 16-е), <b>зрелищность</b> — попадание ★${window.ECON.fameHit}, отправить соперника в аварию ★${window.ECON.fameCrash}, каскад ×3 и больше ★${window.ECON.fameCombo} за каждую волну сверх двух, и <b>шоу для фанатов</b>: финишировавший продолжает ходить на поле, и каждый сожжённый блок даёт славу.</p>
         <p>Между этапами славу тратят в гараже: +1 к характеристикам байка, оружие разной редкости (обычное → редкое → эпическое → легендарное, 4 пушки только в гараже), тюнинг оружия (калибр, магазин, прицел) и команда — механик, оружейник, бронетехник, нитро-инженер. ИИ-соперники тоже зарабатывают и покупают — их покупки видны в «Новостях паддока».</p></section>
       <section><h3>Уровни мастерства и перки</h3><p>Каждый чемпионат состав генерируется заново. Уровень гонщика: ${Object.values(window.TIERS).map(t => `<b style="color:${t.color}">${t.icon} ${t.name}</b> (${Math.round(t.chance * 100)}%, сумма характеристик ${t.sum[0]}–${t.sum[1]})`).join(', ')}. С шансом ${Math.round(window.PERK_CHANCE * 100)}% гонщик получает перк, а один случайный обладатель перка — второй, другой. Перки разные по силе, некоторые меняют поведение ИИ (отмечены рамкой):</p>
-        <div class="rgrid">${Object.values(window.PERKS).map(p => `<div class="rg"><span class="perk-big">${p.icon}</span><div><b>${p.name}</b>${p.behavior ? ' <small class="beh-l">поведение</small>' : ''}<p>${p.desc}</p></div></div>`).join('')}</div></section>
+        <div class="rgrid">${Object.values(window.PERKS).map(p => `<div class="rg"><span class="perk-big">${p.icon}</span><div><b>${p.name}</b>${p.behavior ? ' <small class="beh-l">поведение</small>' : ''}${p.ambiguous ? ' <small class="amb-l">⚖ неоднозначный</small>' : ''}<p>${p.desc}</p></div></div>`).join('')}</div></section>
       <section><h3>Мораль и давка</h3><p>У каждого гонщика есть <b>мораль</b> от 0 до 100: у элиты в среднем выше, у новичков ниже. Мораль влияет на <b>твёрдость руки</b> — точность стрельбы от −10% (мораль 0) до +10% (мораль 100) — и на нервы в <b>давке</b>. С ${CFG.crowdFrom}-го раунда, если в соседних клетках (±1) двое и больше соперников, гонщик проверяет нервы. Чем больше толпа и ниже мораль, тем выше шанс «дрогнуть» (😰 −${String(CFG.crowdLoss[0]).replace('.', ',')}…${String(CFG.crowdLoss[1]).replace('.', ',')} к скорости) или, в ${Math.round(CFG.breakdownChance * 100)}% провалов, сорваться (😱 нервный срыв — <b>пропуск следующего хода</b>). Агрессор давит за двоих, Хладнокровный дрогнет вдвое реже.</p>
         <p>Место в гонке на мораль <b>не влияет</b>. После каждой гонки мораль меняется так: <b>±${CFG.moraleRank} за каждую позицию</b>, отыгранную или потерянную в таблице чемпионата (до ±${CFG.moraleRankCap}, начиная с 3-го этапа); −${CFG.moraleCrash} за каждую свою аварию; +${CFG.moraleKill} за каждого соперника, отправленного в аварию своим выстрелом; +${CFG.moraleFameTop} тому, кто заработал больше всех славы действиями в гонке (без призовых), и −${CFG.moraleFameBottom} тому, кто заработал меньше всех. Затем мораль плавно стремится к 50. <b>Спортивный психолог</b> в гараже замедляет спад после успехов и ускоряет восстановление после неудач.</p></section>
       <section><h3>Очерёдность</h3><p>Гонщики ходят строго по очереди, в порядке стартовой решётки. За ход гонщик: <b>1)</b> делает один обмен на своём поле «три в ряд»; <b>2)</b> получает бонусы от сгоревших блоков (каскады дают множитель ×1,5, ×2…); <b>3)</b> стреляет, если оружие заряжено и цель в секторе; <b>4)</b> передвигает фишку по трассе на число клеток, равное скорости. Если вы играете за гонщика, в свой ход поменяйте местами два соседних блока (перетаскиванием или двумя щелчками). Стрельба, нитро и торможение — автоматические.</p></section>

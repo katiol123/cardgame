@@ -811,3 +811,5 @@ svg.face .fx-tear { animation: fxTear 2s ease-in infinite; }
 .ds-crew div, .ds-tune div { display: grid; grid-template-columns: 22px 150px auto; align-items: center; gap: 4px; }
 .ds-tune { display: grid; gap: 4px; }
 .g-nm { display: inline-block; min-width: 190px; }
+.perk.amb { border-color: rgba(255,210,63,.7); box-shadow: 0 0 8px rgba(255,210,63,.35); }
+.amb-l { color: #ffd23f; font-size: 10px; border: 1px solid rgba(255,210,63,.5); border-radius: 5px; padding: 0 4px; }

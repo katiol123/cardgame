@@ -33,7 +33,7 @@
     vmaxRaw: r => CFG.vmaxBase + CFG.vmaxPer * r.stats.top + (r.tm.vmaxAdd || 0) - (has(r, 'heavy') ? 0.4 : 0),
     accel: r => CFG.accBase + CFG.accPer * r.stats.accel,
     corner: (r, sev, grip) => CFG.cornerBase + CFG.cornerPer * r.stats.handling +
-      CFG.gripPer * (grip === undefined ? r.grip : grip) - (sev === 2 ? CFG.hairpinPenalty : 0) + (r.tm.cornerAdd || 0) + (has(r, 'stunt') ? 1.3 : 0),
+      CFG.gripPer * (grip === undefined ? r.grip : grip) - (sev === 2 ? CFG.hairpinPenalty : 0) + (r.tm.cornerAdd || 0) + (has(r, 'stunt') ? 1.3 : 0) + (has(r, 'careful') ? 0.8 : 0),
     dodge: r => Math.min(0.5, CFG.dodgePer * r.stats.handling + CFG.gripDodge * r.grip + (has(r, 'lucky') ? 0.1 : 0)),
     nitroBoost: r => (CFG.nitroBase + CFG.nitroPer * r.stats.top + 0.7 * r.crew.nitro) * (has(r, 'tactic') ? 2.5 : 1)
   };
@@ -78,17 +78,20 @@
       const over = ca.sev ? projected - F.corner(r, ca.sev) : -1;
       const need = Math.max(0, vm - r.speed) / vm;
       const W = [0, 0, 0, 0, 0, 0];
-      W[0] = over > 0 ? 0.15 : 0.45 + need * 2.6;
+      W[0] = (over > 0 ? 0.15 : 0.45 + need * 2.6) * (has(r, 'ram') && over <= 0 ? 1.3 : 1);
       W[1] = r.nitro >= CFG.nitroMax && !has(r, 'tactic') ? 0.05 : 0.75;
       W[2] = r.charge >= w.charge ? 0.05 : (0.7 + (AI.preyNear(race, r) ? 0.8 : 0)) * (has(r, 'aggro') ? 3 : 1);
       W[3] = r.shield >= CFG.shieldMax ? 0.05 : 0.45 + Math.min(1.2, AI.threats(race, r) * 0.4) - (r.shield / CFG.shieldMax) * 0.35;
       W[4] = r.hp >= CFG.MAX_HP ? 0.03 : (CFG.MAX_HP - r.hp) / CFG.MAX_HP * 2.8 + (r.hp < 35 ? 1.4 : 0);
       W[5] = over > 0 ? 1.3 + over * 0.9 : (r.grip < 2 ? 0.45 : r.grip >= CFG.gripMax ? 0.05 : 0.2);
+      if (has(r, 'careful')) { W[3] *= 1.6; W[4] *= 1.6; }
       return W;
     },
     choose(race, r) {
       let moves = r.board.listMoves();
       if (!moves.length) { r.board.shuffle(); moves = r.board.listMoves(); }
+      if (has(r, 'impulsive') && race.rand() < 0.35) { r.impulseMove = true; return moves[Math.floor(race.rand() * moves.length)]; }
+      r.impulseMove = false;
       const W = r.finished ? [1, 1, 1, 1, 1, 1] : AI.weights(race, r);
       let best = moves[0], bs = -1e9;
       for (const m of moves) {
@@ -104,6 +107,7 @@
     },
     useNitro(race, r) {
       if (has(r, 'tactic') && race.lapOf(r) < race.track.laps) return false; // копит до последнего круга
+      if (has(r, 'careful') && r.hp < 50) return false;
       const v = r.speed + F.nitroBoost(r);
       const ca = AI.cornerAhead(race, r, Math.ceil(v) + 1);
       return !ca.sev || v <= F.corner(r, ca.sev);
@@ -111,6 +115,7 @@
     pickTargets(race, r, list) {
       const w = r.weapon;
       if (w.effect.aoe) return list;
+      if (has(r, 'hunter')) { const st = race.standings(); return [list.slice().sort((a, b) => st.indexOf(a) - st.indexOf(b))[0]]; }
       if (has(r, 'aggro')) return [list.slice().sort((a, b) => Math.abs(a.pos - r.pos) - Math.abs(b.pos - r.pos))[0]];
       if (w.effect.chain) return list.slice().sort((a, b) => Math.abs(a.pos - r.pos) - Math.abs(b.pos - r.pos)).slice(0, w.effect.chain);
       const st = race.standings();
@@ -269,8 +274,10 @@
         r.hits++;
         t.lastAttacker = r.id;
         const revenge = has(r, 'avenger') && r.revengeOn === t.id;
+        const hunt = has(r, 'hunter') && this.standings().indexOf(t) < 3;
         if (revenge) r.revengeOn = -1;
-        const d = this.applyDamage(t, Math.round(w.dmg * CFG.dmgMul * (has(r, 'aggro') ? 1.2 : 1) * (revenge ? 1.5 : 1)), w.effect.pierce);
+        const d = this.applyDamage(t, Math.round(w.dmg * CFG.dmgMul * (has(r, 'aggro') ? 1.2 : 1) * (revenge ? 1.5 : 1) * (hunt ? 1.3 : 1)), w.effect.pierce);
+        if (hunt) res.effects.push('охота на лидера ×1,3');
         if (revenge) res.effects.push('месть ×1,5');
         res.dmg = d.real; res.absorbed = d.absorbed; res.crashed = d.crashed; res.lucky = d.lucky;
         r.dmgDealt += d.real;
@@ -325,6 +332,12 @@
       if (nerve && nerve.halfMove) { const cut = v * 0.5; v -= cut; nerve.loss = cut; } // дрогнул: проехал только полпути
       let sev = sevOver(v, r.frac);
       let brake = 0;
+      // осторожный тормозит заранее: смотрит на два хода вперёд
+      if (has(r, 'careful') && !sev) {
+        const ahead = sevOver(v * 2, r.frac);
+        // тормозит заранее только если обычных тормозов на следующем ходу не хватит
+        if (ahead && v - F.corner(r, ahead) > CFG.brakePower) { const b0 = Math.min(v - F.corner(r, ahead) - CFG.brakePower, CFG.brakePower, r.speed); r.speed -= b0; v -= b0; }
+      }
       // торможение перед поворотом (ограничено мощностью тормозов)
       if (sev && v > F.corner(r, sev) + 0.01 && !has(r, 'stunt')) {
         brake = Math.min(v - F.corner(r, sev), CFG.brakePower * (has(r, 'cold') ? 2 : 1), r.speed);
@@ -366,13 +379,25 @@
       let cellFx = null;
       const c = tr.cell(r.pos);
       if (!r.skip && c.kind !== 'plain' && r.pos > 0 && r.pos < tr.total) cellFx = this.cellEffect(r, c);
+      // таран: закончил ход в одной клетке с соперником
+      let ram = null;
+      if (has(r, 'ram') && !r.skip && r.pos > 0 && r.pos < tr.total) {
+        const t = this.racers.find(o => o !== r && !o.finished && !o.skip && Math.floor(o.pos) === Math.floor(r.pos));
+        if (t) {
+          const dt = this.applyDamage(t, 12, false); t.speed = Math.max(0, t.speed - 1);
+          const ds = this.applyDamage(r, 6, true);
+          r.fame += G.ECON.fameHit; if (dt.crashed) { r.kills++; r.fame += G.ECON.fameCrash; }
+          ram = { target: t, dmg: dt.real, self: ds.real, crashed: dt.crashed, selfCrashed: ds.crashed };
+          this.fx.push({ id: r.id, text: `🐏 ТАРАН! ${t.name} −${dt.real}`, color: '#ff9a3c' });
+        }
+      }
       let finished = false;
       if (r.pos >= tr.total) {
         r.finished = true; r.place = this.finishOrder.length + 1; r.finishRound = this.round;
         this.finishOrder.push(r.id); finished = true;
         if (!this.firstFinishRound) this.firstFinishRound = this.round;
       }
-      return { from, to, cells, boost, brake, sev, skid, cellFx, picked, nerve, crowd, finished };
+      return { from, to, cells, boost, brake, sev, skid, cellFx, picked, nerve, crowd, ram, finished };
     }
 
     // последствия «дрогнул» / «нервный срыв» (вариант задаётся CFG.nerveMode)
@@ -475,6 +500,10 @@
       const mv = move && r.board.swapValid(move[0], move[1]) ? move : AI.choose(this, r);
       res.match = r.board.execute(mv[0], mv[1]);
       if (res.match.combo >= 3) r.fame += G.ECON.fameCombo * (res.match.combo - 2);
+      if (has(r, 'impulsive') && res.match.combo >= 3) {
+        res.match.tally = res.match.tally.map(x => x * 2);
+        this.fx.push({ id: r.id, text: `🎲 ВЕЗЕНИЕ: улов ×2`, color: '#ffd23f' });
+      }
       res.gains = this.applyGains(r, res.match.tally);
       if (r.crew.mech) r.hp = Math.min(CFG.MAX_HP, r.hp + 1.5 * r.crew.mech);
       if (has(r, 'gambler') && this.rand() < 0.15) this.jackpot(r);
