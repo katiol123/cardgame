@@ -124,7 +124,8 @@
         g.setAttribute('class', 'token' + (r.human ? ' human' : ''));
         g.innerHTML = `<circle class="t-aura" r="22" fill="${r.color}"/><circle class="t-shadow" r="15" cy="3" fill="#000" opacity=".5"/>
           <circle class="t-base" r="15" fill="#11141c" stroke="${r.color}" stroke-width="3"/>
-          <g transform="translate(-14 -15)">${Art.helmet(r, 28)}</g>${r.human ? '<text class="t-you" y="-21">ВЫ</text>' : ''}`;
+          <g transform="translate(-14 -15)">${Art.helmet(r, 28)}</g>${r.human ? '<text class="t-you" y="-21">ВЫ</text>' : ''}
+          <g class="t-lap"><circle cx="13" cy="-12" r="7.5"/><text x="13" y="-8.6">2</text></g>`;
         g.addEventListener('click', () => selectRacer(r.id));
         layer.appendChild(g);
         TV.tokens[r.id] = { el: g, pos: r.pos, lat: 0, along: 0, tLat: 0, tAlong: 0, hop: null, scale: 1, shake: 0 };
@@ -237,6 +238,11 @@
         t.el.classList.toggle('acting', r.id === state.acting);
         t.el.classList.toggle('wrecked', r.skip > 0);
         t.el.classList.toggle('done', r.finished);
+        // круг: значок на фишках 2-го круга и дальше; другой круг, чем у выбранного, — полупрозрачно
+        const lap = race.lapOf(r), selLap = race.lapOf(race.racers[state.selected]);
+        t.el.classList.toggle('lap2', lap === 2); t.el.classList.toggle('lap3', lap >= 3);
+        if (lap >= 2) t.el.querySelector('.t-lap text').textContent = lap;
+        t.el.classList.toggle('other-lap', !r.finished && r.id !== state.selected && lap !== selLap);
       });
       // выбранный и ходящий — сверху
       const layer = $('#tokens');
@@ -983,11 +989,17 @@
       });
       // мораль: место, аварии и движение в таблице чемпионата (с 3-го этапа — до этого таблица слишком плотная)
       const rankAfter = Champ.standings();
+      // слава за действия в гонке (без призовых за место): больше всех — кураж, меньше всех — уныние
+      const acts = race.racers.map(r => r.fame), top = Math.max(...acts), bottom = Math.min(...acts);
       race.racers.forEach(r => {
         const shift = d.stage >= 2 ? rankBefore.indexOf(r.id) - rankAfter.indexOf(r.id) : 0;
         row[r.id].rankShift = shift;
         row[r.id].rank = rankAfter.indexOf(r.id) + 1;
-        row[r.id].mo = window.Gen.moraleAfter(window.Shop.ensure(d.roster[r.id]), r.place, r.crashes, shift);
+        row[r.id].kills = r.kills;
+        row[r.id].mo = window.Gen.moraleAfter(window.Shop.ensure(d.roster[r.id]), {
+          crashes: r.crashes, kills: r.kills, rankShift: shift,
+          fameTop: r.fame === top && top > bottom, fameBottom: r.fame === bottom && top > bottom
+        });
       });
       d.history.push({ track: Champ.def().id, rain: d.weather && d.weather.rain, row });
       d.stage++;
@@ -1221,10 +1233,15 @@
   }
 
   const sgn = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(Math.round(v));
-  const moraleTip = mo => `Мораль ${mo.before} → ${mo.after}: за место ${sgn(mo.parts.place)}` +
-    (mo.parts.crash ? `, аварии ${sgn(mo.parts.crash)}` : '') +
-    (mo.rankShift ? `, ${mo.rankShift > 0 ? 'поднялся' : 'опустился'} в таблице на ${Math.abs(mo.rankShift)} ${sgn(mo.parts.rank)}` : '') +
-    ', затем плавно к 50';
+  const moraleTip = mo => {
+    const p = mo.parts, list = [];
+    if (mo.rankShift) list.push(`${mo.rankShift > 0 ? 'поднялся' : 'опустился'} в таблице на ${Math.abs(mo.rankShift)} ${sgn(p.rank)}`);
+    if (p.kill) list.push(`отправил соперников в аварию ${sgn(p.kill)}`);
+    if (p.crash) list.push(`свои аварии ${sgn(p.crash)}`);
+    if (p.fame > 0) list.push(`больше всех славы за гонку ${sgn(p.fame)}`);
+    if (p.fame < 0) list.push(`меньше всех славы за гонку ${sgn(p.fame)}`);
+    return `Мораль ${mo.before} → ${mo.after}: ${list.length ? list.join(', ') : 'без событий'}, затем плавно к 50`;
+  };
   const moraleEmoji = m => m >= 80 ? '🤩' : m >= 60 ? '😀' : m >= 40 ? '😐' : m >= 20 ? '😟' : '😰';
   const tierBadge = t => t ? `<span class="tier t-${t}" title="Уровень мастерства: ${window.TIERS[t].name}">${window.TIERS[t].icon} ${window.TIERS[t].name}</span>` : '';
   const perkBadges = (perks, full) => (perks || []).map(p => `<span class="perk ${window.PERKS[p].behavior ? 'beh' : ''}" title="${window.PERKS[p].name}: ${window.PERKS[p].desc}">${window.PERKS[p].icon}${full ? ' ' + window.PERKS[p].name : ''}</span>`).join('');
@@ -1625,7 +1642,7 @@
       <section><h3>Уровни мастерства и перки</h3><p>Каждый чемпионат состав генерируется заново. Уровень гонщика: ${Object.values(window.TIERS).map(t => `<b style="color:${t.color}">${t.icon} ${t.name}</b> (${Math.round(t.chance * 100)}%, сумма характеристик ${t.sum[0]}–${t.sum[1]})`).join(', ')}. С шансом ${Math.round(window.PERK_CHANCE * 100)}% гонщик получает перк, а один случайный обладатель перка — второй, другой. Перки разные по силе, некоторые меняют поведение ИИ (отмечены рамкой):</p>
         <div class="rgrid">${Object.values(window.PERKS).map(p => `<div class="rg"><span class="perk-big">${p.icon}</span><div><b>${p.name}</b>${p.behavior ? ' <small class="beh-l">поведение</small>' : ''}<p>${p.desc}</p></div></div>`).join('')}</div></section>
       <section><h3>Мораль и давка</h3><p>У каждого гонщика есть <b>мораль</b> от 0 до 100: у элиты в среднем выше, у новичков ниже. Мораль влияет на <b>твёрдость руки</b> — точность стрельбы от −10% (мораль 0) до +10% (мораль 100) — и на нервы в <b>давке</b>. С ${CFG.crowdFrom}-го раунда, если в соседних клетках (±1) двое и больше соперников, гонщик проверяет нервы. Чем больше толпа и ниже мораль, тем выше шанс «дрогнуть» (😰 −${String(CFG.crowdLoss[0]).replace('.', ',')}…${String(CFG.crowdLoss[1]).replace('.', ',')} к скорости) или, в ${Math.round(CFG.breakdownChance * 100)}% провалов, сорваться (😱 нервный срыв — <b>пропуск следующего хода</b>). Агрессор давит за двоих, Хладнокровный дрогнет вдвое реже.</p>
-        <p>После каждой гонки мораль меняется: победа поднимает её примерно на 12, последнее место опускает так же, каждая авария стоит −${CFG.moraleCrash}. А ещё <b>±${CFG.moraleRank} за каждую позицию</b>, отыгранную или потерянную в таблице чемпионата (до ±${CFG.moraleRankCap}, начиная с 3-го этапа): даже скромный финиш окрыляет, если при этом обошёл конкурента. Затем мораль плавно стремится к 50. <b>Спортивный психолог</b> в гараже замедляет спад после успехов и ускоряет восстановление после неудач.</p></section>
+        <p>Место в гонке на мораль <b>не влияет</b>. После каждой гонки мораль меняется так: <b>±${CFG.moraleRank} за каждую позицию</b>, отыгранную или потерянную в таблице чемпионата (до ±${CFG.moraleRankCap}, начиная с 3-го этапа); −${CFG.moraleCrash} за каждую свою аварию; +${CFG.moraleKill} за каждого соперника, отправленного в аварию своим выстрелом; +${CFG.moraleFameTop} тому, кто заработал больше всех славы действиями в гонке (без призовых), и −${CFG.moraleFameBottom} тому, кто заработал меньше всех. Затем мораль плавно стремится к 50. <b>Спортивный психолог</b> в гараже замедляет спад после успехов и ускоряет восстановление после неудач.</p></section>
       <section><h3>Очерёдность</h3><p>Гонщики ходят строго по очереди, в порядке стартовой решётки. За ход гонщик: <b>1)</b> делает один обмен на своём поле «три в ряд»; <b>2)</b> получает бонусы от сгоревших блоков (каскады дают множитель ×1,5, ×2…); <b>3)</b> стреляет, если оружие заряжено и цель в секторе; <b>4)</b> передвигает фишку по трассе на число клеток, равное скорости. Если вы играете за гонщика, в свой ход поменяйте местами два соседних блока (перетаскиванием или двумя щелчками). Стрельба, нитро и торможение — автоматические.</p></section>
       <section><h3>Характеристики (1–20, у всех одинаковая сумма — ${CFG.STAT_TOTAL})</h3>
         <ul>
@@ -1646,7 +1663,7 @@
     $('#gemLegend').innerHTML = GEMS.map((g, i) => `<div class="gl" title="${g.desc}"><div class="gem t${i} static mini"><div class="gem-in">${Art.gemIcon(i)}</div></div><span><b style="color:${g.color}">${g.name}</b><small>${g.short}</small></span></div>`).join('');
     const kinds = state.track ? [...new Set(state.track.cells.map(c => c.kind))].filter(k => k !== 'plain') : Object.keys(CELL_FX);
     const hz = state.track && state.track.def.hazardName;
-    $('#trackLegend').innerHTML = `<span><i class="lg turn"></i>поворот</span><span><i class="lg hair"></i>крутой поворот</span>` +
+    $('#trackLegend').innerHTML = `<span><i class="lg lapb">2</i>номер круга</span><span><i class="lg dim"></i>на другом круге, чем выбранный</span><span><i class="lg turn"></i>поворот</span><span><i class="lg hair"></i>крутой поворот</span>` +
       kinds.map(k => `<span><svg viewBox="-12 -12 24 24" width="16" height="16"><circle r="11" fill="${Art.CELL_COLOR[k]}"/>${Art.CELL_ICON[k]}</svg>${k === 'hazard' && hz ? hz : CELL_FX[k].name}</span>`).join('');
   }
 

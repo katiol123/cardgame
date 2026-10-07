@@ -774,3 +774,16 @@ body.your-turn .board { cursor: pointer; touch-action: none; }
 .ds-hist td.fame { color: var(--gold); }
 .dossier-card .pb-items span { font-size: 11px; }
 @media (max-width: 720px) { .ds-grid { grid-template-columns: 1fr; } .ds-kpi { margin-left: 0; } }
+
+/* круги на фишках */
+.token .t-lap { display: none; }
+.token.lap2 .t-lap, .token.lap3 .t-lap { display: inline; }
+.token .t-lap circle { fill: #ffd23f; stroke: #000; stroke-width: 1.5; }
+.token.lap3 .t-lap circle { fill: #ff3355; }
+.token .t-lap text { font: 10px var(--head); text-anchor: middle; fill: #111; }
+.token.lap3 .t-lap text { fill: #fff; }
+.token.other-lap { opacity: .38; }
+.token.other-lap .t-base { stroke-dasharray: 4 3; }
+.token.other-lap:hover { opacity: .9; }
+.lg.lapb { width: 14px; height: 14px; border-radius: 50%; background: #ffd23f; color: #111; font: 9px var(--head); font-style: normal; display: inline-grid; place-items: center; }
+.lg.dim { width: 12px; height: 12px; border-radius: 50%; border: 2px dashed #aaa; opacity: .6; }

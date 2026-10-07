@@ -3,6 +3,7 @@ require('../js/data.js'); require('../js/board.js'); require('../js/tracks.js');
 const G = globalThis, N = +(process.argv[2] || 4);
 const tracks = G.TRACKS.map(d => G.buildTrack(d));
 let all = [], extremes = 0, cnt = 0, midClimb = [], midNo = [];
+const byRank = {};
 for (let c = 0; c < N; c++) {
   const roster = G.Gen.rollRoster(G.mulberry32(300 + c));
   const pts = Array(16).fill(0);
@@ -13,9 +14,11 @@ for (let c = 0; c < N; c++) {
     const before = rank();
     race.racers.forEach(r => { pts[r.id] += G.POINTS_TABLE[r.place - 1] || 0; });
     const after = rank();
+    const acts = race.racers.map(r => r.fame), top = Math.max(...acts), bot = Math.min(...acts);
     race.racers.forEach(r => {
-      const shift = k > 0 ? before.indexOf(r.id) - after.indexOf(r.id) : 0;
-      const mo = G.Gen.moraleAfter(roster[r.id], r.place, r.crashes, shift);
+      const shift = k >= 2 ? before.indexOf(r.id) - after.indexOf(r.id) : 0;
+      const mo = G.Gen.moraleAfter(roster[r.id], { crashes: r.crashes, kills: r.kills, rankShift: shift, fameTop: r.fame === top && top > bot, fameBottom: r.fame === bot && top > bot });
+      (byRank[after.indexOf(r.id) < 4 ? 'top4' : after.indexOf(r.id) >= 12 ? 'bottom4' : 'mid'] ||= []).push(roster[r.id].morale);
       if (r.place >= 8 && r.place <= 12) (shift > 0 ? midClimb : midNo).push(mo.delta);
       all.push(mo.after); cnt++;
       if (mo.after <= 5 || mo.after >= 95) extremes++;
@@ -25,4 +28,5 @@ for (let c = 0; c < N; c++) {
 const avg = a => (a.reduce((x, y) => x + y, 0) / a.length).toFixed(1);
 all.sort((a, b) => a - b);
 console.log(`мораль: среднее ${avg(all)}, 10% ${all[Math.floor(all.length * 0.1)]}, медиана ${all[Math.floor(all.length / 2)]}, 90% ${all[Math.floor(all.length * 0.9)]}, у края (≤5 или ≥95) ${(extremes / cnt * 100).toFixed(1)}%`);
+console.log('средняя мораль по положению в таблице: топ-4', avg(byRank.top4), ' середина', avg(byRank.mid), ' последние 4', avg(byRank.bottom4));
 console.log(`места 8–12: обошёл кого-то в таблице → мораль ${avg(midClimb)} (n=${midClimb.length}); не поднялся → ${avg(midNo)} (n=${midNo.length})`);

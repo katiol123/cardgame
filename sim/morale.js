@@ -59,7 +59,7 @@ for (const lvl of [0, 1, 2, 3]) {
     const roster = G.Gen.rollRoster(rnd); roster.forEach(r => { r.crew.psy = lvl; });
     for (let k = 0; k < 12; k++) {
       // место и аварии — случайная выборка, как в среднем чемпионате
-      roster.forEach(r => { const place = 1 + Math.floor(rnd() * 16), cr = rnd() < 0.2 ? 1 : 0; G.Gen.moraleAfter(r, place, cr); mSum += r.morale; cnt++; if (r.morale < 40) low++; });
+      roster.forEach(r => { const place = 1 + Math.floor(rnd() * 16), cr = rnd() < 0.2 ? 1 : 0; G.Gen.moraleAfter(r, { crashes: cr, kills: rnd() < 0.2 ? 1 : 0, rankShift: Math.round((rnd() - 0.5) * 4), fameTop: rnd() < 1 / 16, fameBottom: rnd() < 1 / 16 }); void place; mSum += r.morale; cnt++; if (r.morale < 40) low++; });
     }
   }
   console.log(`психолог ур.${lvl}: средняя мораль ${(mSum / cnt).toFixed(1)}, доля «упавших духом» (<40) ${(low / cnt * 100).toFixed(1)}%`);

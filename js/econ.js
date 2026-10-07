@@ -115,21 +115,23 @@
   }
   // Мораль после гонки: результат, затем плавное возвращение к 50 (психолог меняет скорость)
   // rankShift — на сколько позиций гонщик поднялся (+) или опустился (−) в таблице чемпионата
-  function moraleAfter(ros, place, crashes, rankShift) {
-    const C = G.CFG, before = ros.morale, lvl = (ros.crew && ros.crew.psy) || 0;
+  // info: { crashes, kills, rankShift, fameTop, fameBottom }
+  function moraleAfter(ros, info) {
+    const C = G.CFG, before = ros.morale, lvl = (ros.crew && ros.crew.psy) || 0, rankShift = info.rankShift || 0;
     const parts = {
-      place: (8.5 - place) * C.moralePlace,
-      crash: -C.moraleCrash * crashes,
-      rank: Math.max(-C.moraleRankCap, Math.min(C.moraleRankCap, (rankShift || 0) * C.moraleRank))
+      rank: Math.max(-C.moraleRankCap, Math.min(C.moraleRankCap, rankShift * C.moraleRank)),
+      crash: -C.moraleCrash * (info.crashes || 0),
+      kill: Math.min(C.moraleKillCap, C.moraleKill * (info.kills || 0)),
+      fame: (info.fameTop ? C.moraleFameTop : 0) - (info.fameBottom ? C.moraleFameBottom : 0)
     };
-    let m = before + parts.place + parts.crash + parts.rank;
+    let m = before + parts.rank + parts.crash + parts.kill + parts.fame;
     m = Math.max(0, Math.min(100, m));
     let k = C.moraleRegress;
     if (m > 50) k *= 1 - (G.CFG.psyDown || 0.22) * lvl;   // после успеха кураж держится дольше
     else k *= 1 + (G.CFG.psyUp || 0.35) * lvl;          // после неудачи быстрее приходит в себя
     m += (50 - m) * k;
     ros.morale = Math.max(0, Math.min(100, Math.round(m)));
-    return { before, after: ros.morale, delta: ros.morale - before, parts, rankShift: rankShift || 0 };
+    return { before, after: ros.morale, delta: ros.morale - before, parts, rankShift };
   }
   const statSum = ros => ros.stats.accel + ros.stats.top + ros.stats.handling;
 
