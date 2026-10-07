@@ -1085,9 +1085,9 @@
   const RN = id => window.RACERS[id];
   const nmId = id => `<b class="rn" data-rid="${id}" style="color:${RN(id).color}">${RN(id).name}</b>`;
   // лицо гонщика (настроение — по морали); если лица нет (старое сохранение) — шлем
-  const faceRos = (id, ros, size) => ros && ros.face ? window.Faces.svg(ros.face, ros.morale, size, RN(id).color) : helmetId(id, size);
+  const faceRos = (id, ros, size) => ros && ros.face ? window.Faces.svg(ros.face, ros.morale, size, RN(id).color, ros.perks) : helmetId(id, size);
   const faceId = (id, size) => faceRos(id, Champ.d && Champ.d.roster && Champ.d.roster[id], size);
-  const faceR = (r, size) => r.face ? window.Faces.svg(r.face, r.morale, size, r.color) : Art.helmet(r, size);
+  const faceR = (r, size) => r.face ? window.Faces.svg(r.face, r.morale, size, r.color, r.perks) : Art.helmet(r, size);
   const helmetId = (id, size) => Art.helmet({ id, num: id + 1, color: RN(id).color }, size);
 
   // =====================================================================

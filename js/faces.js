@@ -276,10 +276,92 @@
     return s;
   }
 
+  // ---------- эксклюзивные детали перков ----------
+  // Этих деталей нет в случайном генераторе: они появляются ТОЛЬКО у носителя своего перка.
+  // back — за головой, over — на лице, top — поверх причёски.
+  const star = (cx, cy, r, n) => {
+    n = n || 5; let d = '';
+    for (let i = 0; i < n * 2; i++) { const a = -Math.PI / 2 + i * Math.PI / n, rr = i % 2 ? r * 0.45 : r; d += (i ? 'L' : 'M') + (cx + Math.cos(a) * rr).toFixed(1) + ' ' + (cy + Math.sin(a) * rr).toFixed(1); }
+    return d + 'Z';
+  };
+  const MIRROR = 'transform="matrix(-1 0 0 1 100 0)"';
+  const PERK_LOOK = {
+    // капюшон, зелёное пламя в глазницах, призрачный дымок
+    necro: g => ({
+      back: `<path d="M8 100 Q6 38 50 6 Q94 38 92 100Z" fill="#121614" stroke="#2c3a2f" stroke-width="1.5"/>`,
+      over: [50 - g.eyeGap, 50 + g.eyeGap].map(x => `<ellipse cx="${x}" cy="${g.eyeY}" rx="7" ry="6.5" fill="#0a0d0b"/><circle cx="${x}" cy="${g.eyeY}" r="4.5" fill="#7dff9a" opacity=".35"/><path d="M${x - 2.4} ${g.eyeY + 2} Q${x} ${g.eyeY - 6} ${x + 2.4} ${g.eyeY + 2}Z" fill="#b6ffc9" class="fx-glow"/>`).join('') +
+        `<path d="M${50 - g.eyeGap - 6} ${g.eyeY + 9} q4 3 8 0 M${50 + g.eyeGap - 2} ${g.eyeY + 9} q4 3 8 0" stroke="#d8e8dc" stroke-width="1.2" fill="none" opacity=".7"/>`,
+      top: `<path d="M12 100 Q14 48 30 28 Q50 4 70 28 Q86 48 88 100 L81 100 Q79 54 68 37 Q50 16 32 37 Q21 54 19 100Z" fill="#1b221e"/>` +
+        `<path class="fx-flame" d="M44 12 Q46 4 50 0 Q49 6 53 8 Q55 4 58 6 Q54 10 56 14 Q50 10 44 12Z" fill="#7dff9a" opacity=".55"/>`
+    }),
+    // нимб и латный нагрудник с лилией
+    paladin: () => ({
+      top: `<path d="M6 100 Q8 80 30 80 Q37 89 35 100Z" fill="#d5dae3" stroke="#7d8594" stroke-width="1.4"/><path d="M12 92 Q20 84 31 85" stroke="#fff" stroke-width="1.2" fill="none" opacity=".6"/>` +
+        `<g ${MIRROR}><path d="M6 100 Q8 80 30 80 Q37 89 35 100Z" fill="#d5dae3" stroke="#7d8594" stroke-width="1.4"/><path d="M12 92 Q20 84 31 85" stroke="#fff" stroke-width="1.2" fill="none" opacity=".6"/></g>` +
+        `<path d="M50 89 q-3.5 4 0 9 q3.5 -5 0 -9z" fill="#ffd23f" stroke="#a87b00" stroke-width=".6"/><path d="M45 98 q-4 -5 2.5 -5 M55 98 q4 -5 -2.5 -5" stroke="#ffd23f" stroke-width="1.8" fill="none"/>` +
+        `<ellipse cx="50" cy="12" rx="22" ry="5.5" fill="none" stroke="#fff6c8" stroke-width="5" opacity=".35"/><ellipse cx="50" cy="12" rx="22" ry="5.5" fill="none" stroke="#ffe066" stroke-width="2.4" class="fx-glow"/>`
+    }),
+    // звёздные очки кинозвезды
+    press: g => ({ over: `<path d="${star(50 - g.eyeGap, g.eyeY, 8)}" fill="#ff3df2" fill-opacity=".8" stroke="#fff" stroke-width=".8"/><path d="${star(50 + g.eyeGap, g.eyeY, 8)}" fill="#ff3df2" fill-opacity=".8" stroke="#fff" stroke-width=".8"/><path d="M${50 - g.eyeGap + 6} ${g.eyeY - 2} H${50 + g.eyeGap - 6}" stroke="#fff" stroke-width="1.4"/>` }),
+    // рожки и пар из ушей
+    aggro: () => ({ top: `<path d="M31 27 Q21 13 25 3 Q30 16 39 20Z" fill="#d7263d" stroke="#7a0f1f" stroke-width="1"/><path d="M31 27 Q21 13 25 3 Q30 16 39 20Z" fill="#d7263d" stroke="#7a0f1f" stroke-width="1" ${MIRROR}/>` +
+      `<g class="fx-blink" fill="#e8e8e8" opacity=".75"><circle cx="13" cy="40" r="3"/><circle cx="9" cy="34" r="2.2"/><circle cx="87" cy="40" r="3"/><circle cx="91" cy="34" r="2.2"/></g>` }),
+    // бинт на голове и пластырь на щеке
+    stunt: g => ({
+      over: `<g transform="translate(${50 + g.eyeGap + 6} ${g.eyeY + 13}) rotate(35)"><rect x="-6" y="-2" width="12" height="4" rx="1.5" fill="#f2c9a0"/><rect x="-2" y="-6" width="4" height="12" rx="1.5" fill="#f2c9a0"/></g>`,
+      top: `<path d="M23 33 Q50 23 77 33 L77 40 Q50 30 23 40Z" fill="#f5f0e6" stroke="#cfc6b4" stroke-width="1"/><path d="M68 31 l6 -6 M70 33 l7 -3" stroke="#f5f0e6" stroke-width="3" stroke-linecap="round"/><circle cx="36" cy="33" r="2.2" fill="#d7263d" opacity=".8"/>`
+    }),
+    // клевер за ухом
+    lucky: () => ({ top: `<g transform="translate(75 27)"><path d="M0 0 Q4 8 2 14" stroke="#1f7a2e" stroke-width="1.6" fill="none"/>${[[0, -4], [4, 0], [0, 4], [-4, 0]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.6" fill="#2fdc74" stroke="#1f7a2e" stroke-width=".8"/>`).join('')}<circle r="1.4" fill="#ffd23f"/></g>` }),
+    // магнит на ободке
+    magnet: () => ({ top: `<path d="M24 36 Q50 22 76 36" stroke="#333" stroke-width="2.5" fill="none"/><path d="M40 17 V7 A10 10 0 0 1 60 7 V17 H54 V8 A4 4 0 0 0 46 8 V17Z" fill="#e53935" stroke="#7a1414" stroke-width=".8"/><rect x="40" y="13" width="6" height="4" fill="#ddd"/><rect x="54" y="13" width="6" height="4" fill="#ddd"/><path d="M38 22 l-3 2 M62 22 l3 2" stroke="#9fe8ff" stroke-width="1.2"/>` }),
+    // огонь на плечах
+    pyro: () => ({ top: `<g class="fx-flame"><path d="M14 100 Q10 88 18 80 Q18 88 22 86 Q22 78 28 74 Q28 84 32 86 Q34 82 36 84 Q34 92 36 100Z" fill="#ff7b00"/><path d="M18 100 Q16 92 22 88 Q24 94 28 92 Q30 96 30 100Z" fill="#ffd23f"/></g>` +
+      `<g class="fx-flame" ${MIRROR}><path d="M14 100 Q10 88 18 80 Q18 88 22 86 Q22 78 28 74 Q28 84 32 86 Q34 82 36 84 Q34 92 36 100Z" fill="#ff7b00"/><path d="M18 100 Q16 92 22 88 Q24 94 28 92 Q30 96 30 100Z" fill="#ffd23f"/></g>` }),
+    // иней на щеках, сосульки и снежинка
+    cold: g => ({
+      over: `<ellipse cx="${50 - g.eyeGap - 3}" cy="${g.eyeY + 12}" rx="6" ry="3.4" fill="#bfefff" opacity=".45"/><ellipse cx="${50 + g.eyeGap + 3}" cy="${g.eyeY + 12}" rx="6" ry="3.4" fill="#bfefff" opacity=".45"/>` +
+        `<path d="M41 83 L43 91 L45 83Z M48 85 L50 95 L52 85Z M55 83 L57 90 L59 83Z" fill="#dff7ff" stroke="#7fd4ff" stroke-width=".6"/>`,
+      top: `<g transform="translate(82 20)" stroke="#bfefff" stroke-width="1.6" stroke-linecap="round" class="fx-glow"><path d="M0 -7 V7 M-6 -3.5 L6 3.5 M-6 3.5 L6 -3.5"/><path d="M-2 -5 L0 -3 L2 -5 M-2 5 L0 3 L2 5" fill="none"/></g>`
+    }),
+    // рог носорога и цепь на шее
+    heavy: g => ({
+      back: `<g fill="none" stroke="#b8b8b8" stroke-width="2.2">${[30, 37, 44, 51, 58, 65].map((x, i) => `<ellipse cx="${x + 2}" cy="${86 + Math.abs(i - 2.5) * -0.8}" rx="3.6" ry="2.4"/>`).join('')}</g>`,
+      over: `<path d="M46 ${g.noseY - 2} Q48 ${g.noseY - 20} 57 ${g.noseY - 27} Q53 ${g.noseY - 14} 54 ${g.noseY - 2}Z" fill="#d8cfc0" stroke="#8a7f6c" stroke-width="1"/>`
+    }),
+    // гарнитура с микрофоном
+    tactic: () => ({ top: `<path d="M23 46 Q23 13 50 13 Q77 13 77 46" fill="none" stroke="#222" stroke-width="3.5"/><rect x="17" y="38" width="9" height="15" rx="3" fill="#333" stroke="#111"/><rect x="74" y="38" width="9" height="15" rx="3" fill="#333" stroke="#111"/><path d="M22 53 Q26 74 41 75" stroke="#222" stroke-width="2" fill="none"/><circle cx="42" cy="75" r="2.6" fill="#e53935"/><path d="M78 42 l3 0" stroke="#3dfcff" stroke-width="1.5" class="fx-blink"/>` }),
+    // козырёк крупье и серьга-кубик
+    gambler: g => ({
+      over: `<g transform="translate(${g.ears === 'big' ? 12 : 19} ${g.eyeY + 13})"><path d="M0 -4 V0" stroke="#ffd23f" stroke-width="1"/><rect x="-3" y="0" width="6" height="6" rx="1" fill="#fff" stroke="#333" stroke-width=".6"/><circle cx="-1.2" cy="1.8" r=".7" fill="#d7263d"/><circle cx="1.2" cy="4.2" r=".7" fill="#d7263d"/></g>`,
+      top: `<path d="M24 33 Q50 24 76 33" stroke="#14532d" stroke-width="2.5" fill="none"/><path d="M21 35 Q50 24 79 35 L85 44 Q50 31 15 44Z" fill="#2e8b57" fill-opacity=".85" stroke="#14532d" stroke-width="1"/>`
+    }),
+    // встречный поток воздуха
+    drafter: () => ({ back: `<g stroke="#9fe8ff" stroke-width="2" fill="none" stroke-linecap="round" opacity=".75"><path d="M98 26 Q80 24 70 30"/><path d="M100 40 Q86 38 78 44"/><path d="M98 56 Q86 54 80 60"/><path d="M96 70 Q86 68 78 74"/></g>`,
+      top: `<path d="M84 74 a4 4 0 1 1 4 4 a7 7 0 1 1 -7 -7" fill="none" stroke="#9fe8ff" stroke-width="1.8" class="fx-glow"/>` }),
+    // повязка на глаз и знак злости
+    avenger: g => ({ over: `<path d="M22 ${g.eyeY - 9} L78 ${g.eyeY - 17}" stroke="#111" stroke-width="1.6"/><ellipse cx="${50 - g.eyeGap}" cy="${g.eyeY}" rx="7.5" ry="6.5" fill="#111"/><path d="M${50 - g.eyeGap - 3} ${g.eyeY - 2} l6 4 M${50 - g.eyeGap + 3} ${g.eyeY - 2} l-6 4" stroke="#d7263d" stroke-width="1.2"/>` +
+      `<g transform="translate(64 27)" stroke="#ff2d55" stroke-width="2" fill="none" stroke-linecap="round" class="fx-blink"><path d="M-4 -1 q3 0 3 -3 M4 -1 q-3 0 -3 -3 M-4 1 q3 0 3 3 M4 1 q-3 0 -3 3"/></g>` }),
+    // прицел-монокуляр
+    hunter: g => ({ over: `<path d="M${50 + g.eyeGap + 8} ${g.eyeY} L80 ${g.eyeY - 4}" stroke="#222" stroke-width="2"/><circle cx="${50 + g.eyeGap}" cy="${g.eyeY}" r="8" fill="rgba(255,60,60,.15)" stroke="#222" stroke-width="3"/><path d="M${50 + g.eyeGap - 6} ${g.eyeY} H${50 + g.eyeGap + 6} M${50 + g.eyeGap} ${g.eyeY - 6} V${g.eyeY + 6}" stroke="#ff2d55" stroke-width=".9"/><circle cx="${50 + g.eyeGap}" cy="${g.eyeY}" r="2.5" fill="none" stroke="#ff2d55" stroke-width=".8"/>` }),
+    // шлем-панцирь черепахи
+    careful: () => ({ top: `<path d="M23 38 Q25 9 50 9 Q75 9 77 38Z" fill="#3c8d40" stroke="#1f4f22" stroke-width="1.5"/><path d="M39 22 L44 15 H56 L61 22 L56 30 H44Z M44 15 L39 9 M56 15 L61 9 M61 22 H75 M39 22 H25 M44 30 L40 38 M56 30 L60 38" fill="none" stroke="#a8d08d" stroke-width="1.2"/><path d="M19 38 H81" stroke="#1f4f22" stroke-width="3.5" stroke-linecap="round"/>` }),
+    // орбита звёздочек над головой
+    impulsive: () => ({ top: `<ellipse cx="50" cy="14" rx="27" ry="6" fill="none" stroke="#ffd23f" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/><g class="fx-twinkle" fill="#ffd23f"><path d="${star(24, 15, 4)}"/><path d="${star(72, 10, 3.4)}"/><path d="${star(52, 20, 3)}"/></g><text x="80" y="24" font-size="9" fill="#ff7eb6">?</text>` }),
+    // закрученные бараньи рога
+    ram: () => ({ top: `<path d="M30 30 Q11 24 10 43 Q10 59 25 57 Q17 52 19 45 Q21 37 31 40Z" fill="#c9b18a" stroke="#7a6545" stroke-width="1.2"/><path d="M14 44 Q16 50 22 52 M16 36 Q20 33 26 34" stroke="#7a6545" stroke-width=".8" fill="none"/>` +
+      `<g ${MIRROR}><path d="M30 30 Q11 24 10 43 Q10 59 25 57 Q17 52 19 45 Q21 37 31 40Z" fill="#c9b18a" stroke="#7a6545" stroke-width="1.2"/><path d="M14 44 Q16 50 22 52 M16 36 Q20 33 26 34" stroke="#7a6545" stroke-width=".8" fill="none"/></g>` })
+  };
+  function perkLook(g, perks) {
+    const out = { back: '', over: '', top: '' };
+    (perks || []).forEach(p => { const f = PERK_LOOK[p]; if (!f) return; const l = f(g); out.back += l.back || ''; out.over += l.over || ''; out.top += l.top || ''; });
+    return out;
+  }
+
   let uidCounter = 0;
-  /* Отрисовка: seed — зерно лица, morale — 0..100, size — px, color — цвет гонщика (фон) */
-  function svg(seed, morale, size, color) {
-    const g = genome(seed), uid = 'f' + (++uidCounter);
+  /* Отрисовка: seed — зерно лица, morale — 0..100, size — px, color — цвет гонщика (фон), perks — перки (эксклюзивные детали) */
+  function svg(seed, morale, size, color, perks) {
+    const g = genome(seed), uid = 'f' + (++uidCounter), pl = perkLook(g, perks);
     const mood = morale >= 62 ? 'happy' : morale <= 38 ? 'sad' : 'neutral';
     const skin = g.skin, dk = shade(skin, -0.35);
     const fill = g.skin2 ? `url(#sk${uid})` : skin;
@@ -297,6 +379,7 @@
       <g clip-path="url(#cl${uid})">
         <rect width="100" height="100" fill="url(#bg${uid})"/>
         <path d="M22 100 Q24 84 50 82 Q76 84 78 100Z" fill="${shade(color || '#555', -0.3)}"/>
+        ${pl.back}
         ${hair.back}
         ${earsSvg(g, fill, dk)}
         <path d="${skullPath(g)}" fill="${fill}" stroke="${dk}" stroke-width="1.4"/>
@@ -307,7 +390,9 @@
         ${browsSvg(g, mood)}
         ${noseSvg(g, skin)}
         ${mouthSvg(g, mood, skin)}
+        ${pl.over}
         ${hair.front}
+        ${pl.top}
         ${extraMood}
       </g>
       <circle cx="50" cy="50" r="48.5" fill="none" stroke="${color || '#888'}" stroke-width="2.5"/>
@@ -317,5 +402,5 @@
   const moodOf = m => (m >= 62 ? 'happy' : m <= 38 ? 'sad' : 'neutral');
   const newSeed = rand => Math.floor((rand || Math.random)() * 2147483647);
 
-  G.Faces = { svg, genome, moodOf, newSeed, PARTS: { SKULLS, EYES, BROWS, NOSES, MOUTHS, HAIRS, EARS } };
+  G.Faces = { svg, genome, moodOf, newSeed, PERK_LOOK, PARTS: { SKULLS, EYES, BROWS, NOSES, MOUTHS, HAIRS, EARS } };
 })(typeof window !== 'undefined' ? window : globalThis);
