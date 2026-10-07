@@ -284,6 +284,7 @@
     return { map: (x, y) => ({ x: ox + x * sc, y: oy + (y - 20) * sc, s: sc }), upd };
   }
 
+  const snd = (n, o) => { if (window.Snd) window.Snd.play(n, o); };
   const FXS = {
     // полёт снаряда: path(t) -> точка; на каждом кадре вызывается emit
     fly(a, b, dur, arc, emit) {
@@ -293,6 +294,7 @@
     },
     async shot(att, hit, a, b) {
       const w = att.weapon, fx = trackFx, col = w.color, D = 0.55 / Math.min(state.speed, 4);
+      snd('shot', { fx: w.fx });
       switch (w.fx) {
         case 'bullets':
           await fx.task(D, t => {
@@ -368,6 +370,7 @@
     impact(b, w, hit) {
       const fx = trackFx;
       if (hit.hit) {
+        snd(hit.dmg === 0 && hit.absorbed > 0 ? 'shield' : 'hit', { big: hit.dmg >= 40 });
         fx.flash(b.x, b.y, w.color, 44, 0.35);
         fx.ring(b.x, b.y, w.color, 46, { life: 0.5, width: 5 });
         fx.burst(b.x, b.y, w.color, 26, { speed: 260, life: 0.6, g: 120 });
@@ -379,6 +382,7 @@
         TV.tokens[hit.target.id].shake = 10;
         if (hit.target.burn) FXS.fire(hit.target.id, 0.8);
       } else {
+        snd('miss');
         fx.text(b.x, b.y - 24, 'ПРОМАХ', '#aab4c8', { size: 14 });
         fx.burst(b.x + 20, b.y + 10, '#aab4c8', 6, { speed: 120, life: 0.3, g: 0 });
       }
@@ -386,6 +390,7 @@
     },
     crash(id) {
       const p = TV.xy(id), fx = trackFx;
+      snd('crash');
       fx.flash(p.x, p.y, '#ff7a00', 80, 0.6);
       fx.ring(p.x, p.y, '#ffb000', 90, { life: 0.8, width: 8 });
       fx.burst(p.x, p.y, '#ff7a00', 50, { speed: 380, life: 1, g: 200, size: 6 });
@@ -477,7 +482,7 @@
       ea.classList.add('picked'); eb.classList.add('picked');
       BV.cursor(a, b);
       await wait(260); if (!alive()) return;
-      BV.place(ea, b); BV.place(eb, a);
+      BV.place(ea, b); BV.place(eb, a); snd('swap');
       await wait(260); if (!alive()) return;
       ea.classList.remove('picked'); eb.classList.remove('picked');
       $('#boardOverlay').querySelectorAll('.cursor').forEach(c => c.remove());
@@ -487,6 +492,7 @@
         const s = BV.cellPx();
         // спецэффекты активаций
         wave.activations.forEach(act => BV.activation(act, s));
+        snd('match', { combo: wi + 1, n: wave.cleared.length });
         // сгорание блоков
         const flyCount = {};
         wave.cleared.forEach(c => {
@@ -507,6 +513,7 @@
           const p = BV.center(cr.i);
           boardFx.ring(p.x, p.y, '#fff', s * 0.9, { life: 0.5, width: 4 });
           BV.toast(SPECIALS[cr.special].name + '!', p, '#fff');
+          snd('born');
         });
         if (wi > 0) BV.combo(wi + 1, wave.mult);
         await wait(300);
@@ -555,6 +562,7 @@
     activation(act, s) {
       const fx = boardFx, p = { x: (act.c + 0.5) * s, y: (act.r + 0.5) * s }, W = s * BV.n;
       const col = act.type < 6 ? GEMS[act.type].color : '#fff';
+      snd(act.special === 'row' || act.special === 'col' ? 'line' : act.special === 'bomb' ? 'bomb' : 'nova');
       if (act.special === 'row') { fx.beam(0, p.y, W, p.y, col, { width: s * 0.25, life: 0.5 }); fx.beam(0, p.y, W, p.y, '#fff', { width: s * 0.08, life: 0.4, jitter: 6 }); }
       else if (act.special === 'col') { fx.beam(p.x, 0, p.x, W, col, { width: s * 0.25, life: 0.5 }); fx.beam(p.x, 0, p.x, W, '#fff', { width: s * 0.08, life: 0.4, jitter: 6 }); }
       else if (act.special === 'bomb') { fx.flash(p.x, p.y, col, s * 2.6, 0.45); fx.ring(p.x, p.y, col, s * 2.6, { life: 0.55, width: 8 }); fx.burst(p.x, p.y, col, 30, { speed: 420, life: 0.6, g: 0 }); $('#boardPanel').classList.add('quake'); setTimeout(() => $('#boardPanel').classList.remove('quake'), 400); }
@@ -849,6 +857,7 @@
     race.fx.splice(0).forEach((f, i) => {
       const p = TV.xy(f.id);
       setTimeout(() => trackFx.text(p.x, p.y - 44 - i * 4, f.text, f.color, { size: 13, life: 1.4 }), i * 150);
+      if (!/слипстрим/.test(f.text)) snd(/ДРОГНУЛ|СРЫВ/.test(f.text) ? 'nerve' : /ПОЛОМКА/.test(f.text) ? 'hit' : 'perk');
       if (!/слипстрим/.test(f.text) && (!/ДРОГНУЛ|СРЫВ/.test(f.text) || f.id === state.selected)) log(`${nm(race.racers[f.id])}: ${f.text}`, 'cmb');
     });
   }
@@ -861,7 +870,7 @@
     if (obs()) Card.update(r);
     showPerkFx(race);
     if (res.burn) {
-      FXS.fire(r.id, 0.7);
+      FXS.fire(r.id, 0.7); snd('burn');
       const p = TV.xy(r.id);
       trackFx.text(p.x, p.y - 24, '🔥 −' + res.burn.dmg, '#ff9a00', { size: 16 });
       if (res.burn.crashed) { FXS.crash(r.id); log(`${nm(r)} сгорает дотла — авария!`, 'bad'); }
@@ -925,10 +934,12 @@
     const dur = clamp(110 * Math.abs(cells), 260, 1100) / state.speed;
     const p0 = TV.xy(r.id);
     if (mv.boost) {
+      snd('nitro');
       trackFx.flash(p0.x, p0.y, '#22e3ff', 40, 0.4);
       trackFx.text(p0.x, p0.y - 26, 'НИТРО!', '#22e3ff', { size: 16 });
       FXS.trail(r.id, '#22e3ff', dur / 1000);
     } else if (r.speed > F.vmax(r) * 0.85) FXS.trail(r.id, r.color, dur / 1000 * 0.8);
+    if (mv.brake > 0.3) snd('brake');
     if (mv.brake > 0.3) trackFx.text(p0.x, p0.y + 22, 'ТОРМОЗ', '#ffb3b3', { size: 11, life: 0.9, rise: 10 });
     const hop = TV.hop(r.id, mv.from, mv.to, dur);
     if (obs()) await hop; else await wait(Math.min(dur * state.speed, 230));
@@ -936,6 +947,7 @@
     TV.relayout(false);
     const p1 = TV.xy(r.id);
     if (mv.skid) {
+      snd('skid');
       trackFx.smoke(p1.x, p1.y, 14, { size: 10, life: 1.4 });
       trackFx.burst(p1.x, p1.y, '#ffd23f', 14, { speed: 200, life: 0.5, g: 0 });
       trackFx.text(p1.x, p1.y - 26, `ЗАНОС! −${mv.skid.dmg}`, '#ffb000', { size: 15 });
@@ -945,6 +957,7 @@
     }
     if (mv.ram) {
       const pt = TV.xy(mv.ram.target.id);
+      snd('ram');
       trackFx.flash(pt.x, pt.y, '#ff9a3c', 40, 0.35); trackFx.burst(pt.x, pt.y, '#ffd23f', 18, { speed: 220, life: 0.5, g: 100 });
       TV.tokens[mv.ram.target.id].shake = 12; TV.tokens[r.id].shake = 8;
       if (mv.ram.crashed) FXS.crash(mv.ram.target.id);
@@ -953,6 +966,7 @@
     if (mv.undead) {
       const u = mv.undead, el = document.querySelector(`#undead [data-u="${u.u.id}"]`);
       if (el) { el.classList.remove('strike'); void el.getBBox(); el.classList.add('strike'); }
+      snd(u.banished ? 'banish' : 'undead', { hit: u.hit });
       if (u.banished) {
         trackFx.flash(p1.x, p1.y, '#ffe9a0', 60, 0.5); trackFx.ring(p1.x, p1.y, '#ffe9a0', 46, { life: 0.7 });
         trackFx.burst(p1.x, p1.y, '#fff6d0', 26, { speed: 160, life: 0.8, g: -60 });
@@ -973,6 +987,7 @@
     }
     if (mv.cellFx) {
       const k = mv.cellFx.kind;
+      snd(k === 'jump' ? 'jump' : 'pickup', { kind: k });
       trackFx.ring(p1.x, p1.y, Art.CELL_COLOR[k], 30, { life: 0.5 });
       const hz = k === 'hazard' && race.track.def.hazardName;
       trackFx.text(p1.x, p1.y + 24, hz ? `${hz}! −${mv.cellFx.dmg}` : k === 'hazard' ? `Обломки! −${mv.cellFx.dmg}` : CELL_FX[k].text, Art.CELL_COLOR[k], { size: 12, life: 1.1, rise: 20 });
@@ -986,6 +1001,7 @@
       if (mv.cellFx.crashed) FXS.crash(r.id);
     }
     if (mv.finished) {
+      snd('finish', { place: r.place });
       FXS.confetti(r.id);
       banner(`${r.name} финиширует ${r.place}-м!`, r.place === 1 ? '#ffd23f' : '#fff');
       log(`🏁 ${nm(r)} финиширует <b>${r.place}-м</b>`, 'good');
@@ -993,7 +1009,7 @@
       const lapBefore = Math.floor(mv.from / race.track.N), lapAfter = Math.floor(mv.to / race.track.N);
       if (lapAfter > lapBefore && lapAfter === race.track.laps - 1 && race.standings()[0] === r && !race._lastLapShown) {
         race._lastLapShown = true;
-        banner('ПОСЛЕДНИЙ КРУГ!', '#ff3355');
+        banner('ПОСЛЕДНИЙ КРУГ!', '#ff3355'); snd('lastLap');
       }
     }
     showPerkFx(race);
@@ -1163,6 +1179,7 @@
       const ea = Input.gemAt(a), eb = Input.gemAt(b);
       if (!ea || !eb) return;
       const g = board.grid;
+      snd('bad');
       if ((g[a] && g[a].lock) || (g[b] && g[b].lock)) BV.toast('ЗАМОРОЖЕНО', BV.center(a), '#9eeaff');
       BV.place(ea, b); BV.place(eb, a);
       await new Promise(r => setTimeout(r, 200));
@@ -1273,6 +1290,7 @@
     const cd = $('#countdown');
     cd.classList.add('show');
     for (const [t, c] of [['3', '#ff3355'], ['2', '#ff3355'], ['1', '#ffd23f'], ['СТАРТ!', '#2fdc74']]) {
+      snd(t === 'СТАРТ!' ? 'go' : 'beep');
       cd.innerHTML = `<div class="lights">${[0, 1, 2].map(i => `<i class="${(t === '3' && i < 1) || (t === '2' && i < 2) || (t === '1') ? 'red' : t === 'СТАРТ!' ? 'green' : ''}"></i>`).join('')}</div><div class="cd-num" style="--c:${c}">${t}</div>`;
       await new Promise(r => setTimeout(r, 650));
     }
@@ -1442,7 +1460,7 @@
       else Paddock.show(() => TrackIntro.show());
     };
     $('#results').classList.add('show');
-    FXS.confetti(st[0].id);
+    FXS.confetti(st[0].id); snd('fanfare');
   }
 
   // =====================================================================
@@ -1506,7 +1524,7 @@
       window.Shop.apply(ros, o);
       (ros.buys = ros.buys || []).push({ stage: d.stage, label: window.Shop.label(o), price: o.price, type: o.type });
       d.fame[id] -= o.price;
-      Champ.save();
+      Champ.save(); snd('coin');
       const r = btn.getBoundingClientRect();
       for (let i = 0; i < 10; i++) {
         const f = el('div', 'flyer'); f.style.setProperty('--c', '#ffd23f'); $('#flyers').appendChild(f);
@@ -1693,6 +1711,7 @@
   const Final = {
     show() {
       const d = Champ.d, st = Champ.standings(), ch = st[0];
+      snd('fanfare');
       const me = d.human >= 0 ? st.indexOf(d.human) + 1 : 0;
       $('#finalBody').innerHTML = `
         <div class="trophy"><svg viewBox="0 0 120 140" width="130"><defs><linearGradient id="gold" x1="0" x2="1"><stop offset="0" stop-color="#b8860b"/><stop offset=".5" stop-color="#ffe680"/><stop offset="1" stop-color="#b8860b"/></linearGradient></defs>
@@ -1805,12 +1824,18 @@
       document.body.classList.toggle('paused', state.paused);
     };
     $('#btnPause').onclick = pause;
+    // звук: кнопка в шапке, клавиша M, тихий щелчок на кнопках
+    const sndBtn = () => { $('#btnSound').textContent = window.Snd && window.Snd.on ? '🔊' : '🔇'; $('#btnSound').classList.toggle('active', !(window.Snd && window.Snd.on)); };
+    const sndToggle = () => { if (!window.Snd) return; window.Snd.toggle(); sndBtn(); snd('click'); };
+    $('#btnSound').onclick = sndToggle; sndBtn();
+    document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.btn, .mode, .pick, .g-tab')) snd('click'); }, true);
     const tb = () => document.documentElement.style.setProperty('--tb', $('.topbar').offsetHeight + 'px');
     new ResizeObserver(tb).observe($('.topbar')); tb();
     document.querySelectorAll('#speedGroup .seg').forEach(b => { b.onclick = () => setSpeed(+b.dataset.speed); });
     document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT') return;
       if (e.code === 'Space') { e.preventDefault(); pause(); }
+      else if (e.code === 'KeyM') sndToggle();
       else if (e.key >= '1' && e.key <= '4') setSpeed([1, 2, 4, 10][+e.key - 1]);
       else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && state.race) {
         const st = state.race.standings(), i = st.findIndex(r => r.id === state.selected);
