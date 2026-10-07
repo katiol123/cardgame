@@ -102,7 +102,8 @@
       const total = lo + Math.floor(rand() * (hi - lo + 1));
       const perks = rand() < G.PERK_CHANCE ? [keys[Math.floor(rand() * keys.length)]] : [];
       const morale = Math.round(G.CFG.moraleStart[tier] + (rand() * 20 - 10));
-      return ensure({ tier, stats: G.rollStats(rand, total), weapon: ws[i], perks, morale });
+      const face = G.Faces ? G.Faces.newSeed(rand) : 0;
+      return ensure({ tier, stats: G.rollStats(rand, total), weapon: ws[i], perks, morale, face });
     });
     // один (и только один) из обладателей перка получает второй, другой
     const holders = roster.filter(r => r.perks.length);

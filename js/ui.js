@@ -605,7 +605,7 @@
       if (w.effect.strip) eff.push('срыв сцепления');
       $('#racerCard').innerHTML = `
         <div class="rc-id" style="--rc:${r.color}">
-          <div class="rc-ava">${Art.helmet(r, 74)}</div>
+          <div class="rc-ava">${faceR(r, 84)}</div>
           <div class="rc-name"><small>№${r.num}${r.human ? ' · ВЫ' : ''}</small>${r.name}</div>
           <div class="rc-tags">${tierBadge(r.tier)}${perkBadges(r.perks, true)}</div>
           <div class="rc-tags"><span class="tag place" id="c-place"></span><span class="tag" id="c-lap"></span><span class="tag status" id="c-status"></span><span class="tag champ" id="c-champ"></span></div>
@@ -1012,7 +1012,7 @@
         const s = JSON.parse(localStorage.getItem(SAVE_KEY));
         if (!s || s.v !== 1) return null;
         s.fame = s.fame || Array(16).fill(0); if (Array.isArray(s.news)) s.news = null;
-        s.roster.forEach(r => window.Shop.ensure(r));
+        s.roster.forEach((r, i) => { window.Shop.ensure(r); if (!r.face) r.face = 1000003 * (i + 1) + 7; });
         return s;
       } catch (e) { return null; }
     },
@@ -1020,6 +1020,10 @@
   };
   const RN = id => window.RACERS[id];
   const nmId = id => `<b class="rn" data-rid="${id}" style="color:${RN(id).color}">${RN(id).name}</b>`;
+  // лицо гонщика (настроение — по морали); если лица нет (старое сохранение) — шлем
+  const faceRos = (id, ros, size) => ros && ros.face ? window.Faces.svg(ros.face, ros.morale, size, RN(id).color) : helmetId(id, size);
+  const faceId = (id, size) => faceRos(id, Champ.d && Champ.d.roster && Champ.d.roster[id], size);
+  const faceR = (r, size) => r.face ? window.Faces.svg(r.face, r.morale, size, r.color) : Art.helmet(r, size);
   const helmetId = (id, size) => Art.helmet({ id, num: id + 1, color: RN(id).color }, size);
 
   // =====================================================================
@@ -1247,7 +1251,7 @@
   const perkBadges = (perks, full) => (perks || []).map(p => `<span class="perk ${window.PERKS[p].behavior ? 'beh' : ''}" title="${window.PERKS[p].name}: ${window.PERKS[p].desc}">${window.PERKS[p].icon}${full ? ' ' + window.PERKS[p].name : ''}</span>`).join('');
   function racerPill(id, ros) {
     const w = WEAPONS.find(x => x.id === ros.weapon);
-    return `<div class="pick ${ros.perks.length > 1 ? 'double' : ''}" data-id="${id}" style="--rc:${RN(id).color}">${helmetId(id, 46)}<div class="pk-main"><b>${RN(id).name} ${tierBadge(ros.tier)}</b>
+    return `<div class="pick ${ros.perks.length > 1 ? 'double' : ''}" data-id="${id}" style="--rc:${RN(id).color}">${faceRos(id, ros, 54)}<div class="pk-main"><b>${RN(id).name} ${tierBadge(ros.tier)}</b>
       <div class="pk-stats"><span class="c-acc">Р ${ros.stats.accel}</span><span class="c-top">С ${ros.stats.top}</span><span class="c-han">М ${ros.stats.handling}</span><span class="c-mor" title="Мораль: чем выше, тем спокойнее в давке и точнее стрельба">${moraleEmoji(ros.morale)} ${ros.morale}</span></div>
       <div class="pk-w">${Art.weaponIcon(w, 16)} ${w.name}</div>${ros.perks.length ? `<div class="pk-perks">${perkBadges(ros.perks, true)}</div>` : ''}</div></div>`;
   }
@@ -1354,7 +1358,7 @@
     const st = race.racers.slice().sort((a, b) => a.place - b.place);
     $('#resTitle').innerHTML = `${flagSvg(def.id, 34)} Этап ${Champ.d.stage}: ${def.name}`;
     $('#podium').innerHTML = [st[1], st[0], st[2]].map((r, i) => `<div class="pod p${[2, 1, 3][i]}" style="--rc:${r.color}">
-      <div class="pod-ava">${Art.helmet(r, i === 1 ? 90 : 70)}</div><b>${r.name}</b><small>+${row[r.id].pts} очк.</small><div class="pod-col">${[2, 1, 3][i]}</div></div>`).join('');
+      <div class="pod-ava">${faceR(r, i === 1 ? 96 : 76)}</div><b>${r.name}</b><small>+${row[r.id].pts} очк.</small><div class="pod-col">${[2, 1, 3][i]}</div></div>`).join('');
     $('#resultsTable').innerHTML = `<div class="res-cols"><div><h3>Итоги гонки</h3><table><thead><tr><th>#</th><th>Гонщик</th><th>Очки</th><th title="призовые + зрелищность + шоу">Слава</th><th title="мораль после гонки (плавно стремится к 50)">Мораль</th><th>Попад.</th><th>Урон</th><th>Аварии</th></tr></thead><tbody>` +
       st.map(r => `<tr class="${r.human ? 'me' : ''}"><td>${r.place}</td><td>${nm(r)}${r.dnf ? ' <small class="dnf">не финишировал</small>' : ''}</td><td class="pts">${row[r.id].pts ? '+' + row[r.id].pts : '—'}</td><td class="fame" title="призовые ★${row[r.id].prize} · в гонке ★${row[r.id].fame - row[r.id].show} · шоу ★${row[r.id].show}${row[r.id].press ? ' · любимец прессы ×1,4' : ''}">★${row[r.id].earned}${row[r.id].press ? ' 📸' : ''}</td><td class="mo ${row[r.id].mo.delta > 0 ? 'up' : row[r.id].mo.delta < 0 ? 'down' : ''}" title="${moraleTip(row[r.id].mo)}">${moraleEmoji(row[r.id].mo.after)} ${row[r.id].mo.after} <small>${row[r.id].mo.delta > 0 ? '▲+' + row[r.id].mo.delta : row[r.id].mo.delta < 0 ? '▼' + row[r.id].mo.delta : ''}</small></td><td>${r.hits}/${r.shots}</td><td>${Math.round(r.dmgDealt)}</td><td>${r.crashes}</td></tr>`).join('') +
       `</tbody></table></div><div><h3>Чемпионат</h3>${champTableHtml(row)}</div></div>`;
@@ -1417,7 +1421,7 @@
       }
 
       $('#garageBody').innerHTML = `
-        <div class="g-top" style="--rc:${RN(id).color}">${helmetId(id, 58)}<div><small>Гараж команды</small><b>${RN(id).name}</b><div class="rc-tags">${tierBadge(ros.tier)}${perkBadges(ros.perks, true)}<span class="perk" title="Мораль">${moraleEmoji(ros.morale)} мораль ${ros.morale}</span></div></div>
+        <div class="g-top" style="--rc:${RN(id).color}">${faceId(id, 64)}<div><small>Гараж команды</small><b>${RN(id).name}</b><div class="rc-tags">${tierBadge(ros.tier)}${perkBadges(ros.perks, true)}<span class="perk" title="Мораль">${moraleEmoji(ros.morale)} мораль ${ros.morale}</span></div></div>
           <div class="g-fame"><small>Слава</small><b id="gFame">★ ${fame}</b></div></div>
         <div class="g-tabs">${[['bike', '🏍 Байк'], ['weapon', '🔫 Оружие'], ['crew', '👥 Команда']].map(([k, t]) => `<button class="g-tab ${Garage.tab === k ? 'on' : ''}" data-tab="${k}">${t}</button>`).join('')}</div>
         <div class="g-body">${body}</div>
@@ -1526,7 +1530,7 @@
       const crew = Object.entries(window.ECON.crew).filter(([k]) => ros.crew[k]).map(([k, c]) => `<span title="${c.name}: ур. ${ros.crew[k]}">${c.icon}${ros.crew[k]}</span>`).join('') || '<small>команда не нанята</small>';
       const tune = ['cal', 'mag', 'aim'].filter(k => ros.wmods[k]).map(k => `${window.ECON.wmods[k].icon}${ros.wmods[k]}`).join(' ');
       return `<div class="pt ${id === d.human ? 'me' : ''}" style="--rc:${RN(id).color};--i:${i}">
-        <div class="pt-h"><span class="pt-pos">${i + 1}</span>${helmetId(id, 40)}<div class="pt-n"><b class="rn" data-rid="${id}">${RN(id).name}${id === d.human ? ' <small>ВЫ</small>' : ''}</b><div>${tierBadge(ros.tier)}${perkBadges(ros.perks)}</div></div>
+        <div class="pt-h"><span class="pt-pos">${i + 1}</span>${faceId(id, 46)}<div class="pt-n"><b class="rn" data-rid="${id}">${RN(id).name}${id === d.human ? ' <small>ВЫ</small>' : ''}</b><div>${tierBadge(ros.tier)}${perkBadges(ros.perks)}</div></div>
           <div class="pt-pts"><b>${d.points[id]}</b><small>оч.</small>${rk ? `<i class="rk2 ${rk > 0 ? 'up' : 'down'}">${rk > 0 ? '▲' : '▼'}${Math.abs(rk)}</i>` : ''}</div></div>
         <div class="pt-row"><span title="Мораль">${moraleEmoji(ros.morale)} ${ros.morale}${mo ? ` <small class="${mo > 0 ? 'up' : 'down'}">${mo > 0 ? '+' : ''}${mo}</small>` : ''}</span><span title="Слава в кошельке">★${d.fame[id]}</span><span title="Побед / подиумов">🏆${d.wins[id]} · 🥉${d.podiums[id]}</span></div>
         ${st('accel', 'c-acc', 'Р')}${st('top', 'c-top', 'С')}${st('handling', 'c-han', 'М')}
@@ -1584,7 +1588,7 @@
       if (w.effect.strip) effects.push('срыв сцепления');
       const pips = l => `<span class="lv">${[0, 1, 2].map(i => `<i class="${i < l ? 'on' : ''}"></i>`).join('')}</span>`;
       $('#dossierBody').innerHTML = `
-        <div class="ds-top" style="--rc:${RN(id).color}">${helmetId(id, 78)}<div class="ds-name"><small>№${id + 1}${id === d.human ? ' · ВЫ' : ''}</small><b>${RN(id).name}</b><div class="rc-tags">${tierBadge(ros.tier)}</div></div>
+        <div class="ds-top" style="--rc:${RN(id).color}">${faceId(id, 104)}<div class="ds-name"><small>№${id + 1}${id === d.human ? ' · ВЫ' : ''}</small><b>${RN(id).name}</b><div class="rc-tags">${tierBadge(ros.tier)}</div>${ros.face ? `<div class="ds-moods" title="Как выглядит при высокой, средней и низкой морали">${[85, 50, 15].map(m => window.Faces.svg(ros.face, m, 34, RN(id).color)).join('')}</div>` : ''}</div>
           <div class="ds-kpi"><div><b>${pos}</b><small>место в таблице</small></div><div><b>${d.points[id]}</b><small>очков</small></div><div><b>${d.wins[id]}/${d.podiums[id]}</b><small>побед / подиумов</small></div><div><b>★${d.fame[id]}</b><small>слава</small></div></div></div>
         ${ros.perks.length ? `<div class="ds-perks">${ros.perks.map(p => { const P = window.PERKS[p]; return `<div class="ds-perk ${P.behavior ? 'beh' : ''}"><i>${P.icon}</i><div><b>${P.name}</b>${P.behavior ? ' <small class="beh-l">поведение</small>' : ''}<p>${P.desc}</p></div></div>`; }).join('')}</div>` : ''}
         <div class="ds-grid">
@@ -1612,7 +1616,7 @@
         <div class="trophy"><svg viewBox="0 0 120 140" width="130"><defs><linearGradient id="gold" x1="0" x2="1"><stop offset="0" stop-color="#b8860b"/><stop offset=".5" stop-color="#ffe680"/><stop offset="1" stop-color="#b8860b"/></linearGradient></defs>
           <path d="M30 10h60v30c0 22-14 38-30 40-16-2-30-18-30-40z" fill="url(#gold)"/><path d="M30 18H12c0 18 8 28 20 30M90 18h18c0 18-8 28-20 30" stroke="url(#gold)" stroke-width="6" fill="none"/>
           <rect x="54" y="80" width="12" height="22" fill="url(#gold)"/><rect x="34" y="102" width="52" height="12" rx="3" fill="url(#gold)"/><rect x="26" y="114" width="68" height="18" rx="3" fill="#3a2a10"/></svg>
-          <div class="champ-ava">${helmetId(ch, 96)}</div></div>
+          </div><div class="champ-face">${faceId(ch, 120)}</div>
         <div class="champ-name" style="--rc:${RN(ch).color}">${RN(ch).name}</div>
         <div class="champ-sub">Чемпион «Ярости трассы» · ${d.points[ch]} очков · побед: ${d.wins[ch]}</div>
         ${me ? `<div class="champ-me">Ваш итог: <b>${me}-е место</b>, ${d.points[d.human]} очков</div>` : ''}

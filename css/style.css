@@ -787,3 +787,23 @@ body.your-turn .board { cursor: pointer; touch-action: none; }
 .token.other-lap:hover { opacity: .9; }
 .lg.lapb { width: 14px; height: 14px; border-radius: 50%; background: #ffd23f; color: #111; font: 9px var(--head); font-style: normal; display: inline-grid; place-items: center; }
 .lg.dim { width: 12px; height: 12px; border-radius: 50%; border: 2px dashed #aaa; opacity: .6; }
+
+/* лица гонщиков */
+svg.face { display: block; flex-shrink: 0; border-radius: 50%; filter: drop-shadow(0 4px 10px rgba(0,0,0,.5)); }
+.rc-ava { padding: 0; background: none; }
+.rc-ava svg.face { filter: drop-shadow(0 0 16px color-mix(in srgb, var(--rc) 55%, transparent)); }
+.ds-moods { display: flex; gap: 4px; margin-top: 6px; }
+.champ-face { display: flex; justify-content: center; margin-top: -10px; animation: trophy 1.2s .3s cubic-bezier(.2,1.4,.4,1) both; }
+.champ-face svg.face { filter: drop-shadow(0 0 30px rgba(255,210,63,.6)); }
+.pick svg.face { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--rc) 60%, transparent)); }
+@keyframes fxFlame { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.06) translateY(-1px); } }
+svg.face .fx-flame { transform-origin: 50px 30px; animation: fxFlame .5s ease-in-out infinite; }
+@keyframes fxGlow { 50% { opacity: .45; } }
+svg.face .fx-glow { animation: fxGlow 1.4s ease-in-out infinite; }
+@keyframes fxSpin { to { transform: rotate(360deg); } }
+svg.face .fx-spin { animation: fxSpin 3s linear infinite; }
+svg.face .fx-blink { animation: fxGlow .9s steps(2) infinite; }
+@keyframes fxTwinkle { 50% { opacity: .2; transform: scale(.8); } }
+svg.face .fx-twinkle { transform-origin: 50px 50px; animation: fxTwinkle 1.6s ease-in-out infinite; }
+@keyframes fxTear { 0% { transform: translateY(-3px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(8px); opacity: 0; } }
+svg.face .fx-tear { animation: fxTear 2s ease-in infinite; }

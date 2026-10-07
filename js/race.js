@@ -169,7 +169,7 @@
           weapon: ros ? G.makeWeapon(ros.weapon, ros.wmods) : opts.weapon ? opts.weapon(id) : pool[id],
           crew: Object.assign({ mech: 0, gun: 0, armor: 0, nitro: 0 }, ros && ros.crew), fame: 0, showFame: 0, kills: 0,
           perks: (ros && ros.perks) || [], tier: ros && ros.tier,
-          morale: ros && typeof ros.morale === 'number' ? ros.morale : 50, nerves: 0,
+          morale: ros && typeof ros.morale === 'number' ? ros.morale : 50, nerves: 0, face: ros && ros.face,
           board: new G.Board(this.rand),
           hp: CFG.MAX_HP, shield: 0, speed: 0, frac: 0,
           pos: -Math.floor(slot / 2), lane: slot % 2,
