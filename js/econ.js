@@ -66,29 +66,42 @@
     return `${w.name} (${G.RARITY[w.rarity].name.toLowerCase()})`;
   }
 
-  // Траты ИИ: немного случайности, тяга к редкому оружию, иногда копит
+  // Траты ИИ. Каждый вариант оценивается как «сила апгрейда / цена» (сила измерена симуляцией).
+  // Лучший вариант выбирается из ВСЕХ, а не только из доступных: если он пока не по карману,
+  // но уже накоплена заметная часть, ИИ копит. Иначе дешёвые апы всегда перебивали бы дорогую команду.
+  function aiValue(ros, o) {
+    let v;
+    if (o.type === 'weapon') v = 0.12 * (RANK[G.WEAPONS.find(w => w.id === o.key).rarity] - RANK[weaponOf(ros).rarity]); // sim/weapons.js: редкость почти не решает
+    else if (o.type === 'repair') v = E.value.stat[o.stat] * (o.amount * 1.5 + G.CFG.sponsorLoss * 4); // ремонт спасает и от постоянной потери
+    else v = E.value[o.type][o.key];
+    if (o.type === 'stat') v *= 1.25 - ros.stats[o.key] / 25;
+    if (o.type === 'repair') v *= 1.25 - ros.stats[o.stat] / 25; // слабые характеристики тянет подтянуть
+    if (o.type === 'wmod' || (o.type === 'crew' && o.key === 'gun')) v += 0.01; // оружейные апы ещё и приносят немного славы за попадания
+    return v;
+  }
   function aiSpend(ros, wallet, rand) {
     ensure(ros);
     const bought = [], items = [];
-    const curRank = () => RANK[weaponOf(ros).rarity];
+    // вкус гонщика на весь магазин: кто-то любит железо, кто-то команду, кто-то пушки
+    const taste = { stat: 0.8 + rand() * 0.4, crew: 0.8 + rand() * 0.4, wmod: 0.8 + rand() * 0.4, weapon: 0.8 + rand() * 0.4, repair: 1 };
     for (let n = 0; n < 4; n++) {
-      const all = options(ros);
-      const better = all.filter(o => o.type === 'weapon' && RANK[G.WEAPONS.find(w => w.id === o.key).rarity] > curRank());
-      // копим на пушку получше
-      const dream = better.filter(o => o.price > wallet).sort((a, b) => a.price - b.price)[0];
-      if (dream && wallet >= dream.price * 0.55 && rand() < 0.45) break;
-      const can = all.filter(o => o.price <= wallet && (o.type !== 'weapon' || better.includes(o)));
-      if (!can.length) break;
+      const all = options(ros).filter(o => o.type !== 'weapon' || aiValue(ros, o) > 0);
       let best = null, bs = -1;
-      for (const o of can) {
-        // ценность = измеренная сила апгрейда (в местах), у пушки — по редкости
-        let v = o.type === 'weapon' ? 0.3 * (RANK[G.WEAPONS.find(w => w.id === o.key).rarity] - curRank())
-          : o.type === 'repair' ? E.value.stat[o.stat] * (o.amount * 1.5 + G.CFG.sponsorLoss * 4) : E.value[o.type][o.key]; // ремонт спасает и от постоянной потери
-        if (o.type === 'stat') v *= 1.25 - ros.stats[o.key] / 25;
-        if (o.type === 'repair') v *= 1.25 - ros.stats[o.stat] / 25; // слабые характеристики тянет подтянуть
-        if (o.type === 'wmod' || (o.type === 'crew' && o.key === 'gun')) v += 0.05;   // оружейные апы ещё и приносят славу за попадания
-        const s = v / Math.max(15, o.price) * (0.6 + rand() * 0.8);
+      for (const o of all) {
+        const s = aiValue(ros, o) / Math.max(8, o.price) * taste[o.type] * (0.75 + rand() * 0.5);
         if (s > bs) { bs = s; best = o; }
+      }
+      if (!best) break;
+      if (best.price > wallet) {
+        // копим, если цель достижима за пару этапов; иначе берём лучшее из доступного
+        if (wallet >= best.price * 0.35) break;
+        best = null; bs = -1;
+        for (const o of all) {
+          if (o.price > wallet) continue;
+          const s = aiValue(ros, o) / Math.max(8, o.price) * taste[o.type] * (0.75 + rand() * 0.5);
+          if (s > bs) { bs = s; best = o; }
+        }
+        if (!best) break;
       }
       apply(ros, best);
       wallet -= best.price;
