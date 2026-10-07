@@ -668,3 +668,7 @@ body.your-turn .board { cursor: pointer; touch-action: none; }
 .board-panel.crowded .board-shell { animation: jitter 2.4s infinite; }
 @keyframes jitter { 0%, 90%, 100% { transform: none; } 92% { transform: translate(-1px, 1px); } 94% { transform: translate(1px, -1px); } 96% { transform: translate(-1px, 0); } }
 .gchip.crowd-warn { animation: actpulse 1s infinite; }
+.crow { position: relative; }
+.crow .rk { position: absolute; left: -2px; top: -3px; font-style: normal; font-size: 9px; font-weight: 800; padding: 0 3px; border-radius: 4px; cursor: help; }
+.crow .rk.up { color: #04220f; background: #2fdc74; }
+.crow .rk.down { color: #2a0008; background: #ff5470; }

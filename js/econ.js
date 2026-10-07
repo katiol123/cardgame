@@ -113,16 +113,22 @@
     return roster;
   }
   // Мораль после гонки: результат, затем плавное возвращение к 50 (психолог меняет скорость)
-  function moraleAfter(ros, place, crashes) {
+  // rankShift — на сколько позиций гонщик поднялся (+) или опустился (−) в таблице чемпионата
+  function moraleAfter(ros, place, crashes, rankShift) {
     const C = G.CFG, before = ros.morale, lvl = (ros.crew && ros.crew.psy) || 0;
-    let m = before + (8.5 - place) * C.moralePlace - C.moraleCrash * crashes;
+    const parts = {
+      place: (8.5 - place) * C.moralePlace,
+      crash: -C.moraleCrash * crashes,
+      rank: Math.max(-C.moraleRankCap, Math.min(C.moraleRankCap, (rankShift || 0) * C.moraleRank))
+    };
+    let m = before + parts.place + parts.crash + parts.rank;
     m = Math.max(0, Math.min(100, m));
     let k = C.moraleRegress;
     if (m > 50) k *= 1 - (G.CFG.psyDown || 0.22) * lvl;   // после успеха кураж держится дольше
     else k *= 1 + (G.CFG.psyUp || 0.35) * lvl;          // после неудачи быстрее приходит в себя
     m += (50 - m) * k;
     ros.morale = Math.max(0, Math.min(100, Math.round(m)));
-    return { before, after: ros.morale, delta: ros.morale - before };
+    return { before, after: ros.morale, delta: ros.morale - before, parts, rankShift: rankShift || 0 };
   }
   const statSum = ros => ros.stats.accel + ros.stats.top + ros.stats.handling;
 

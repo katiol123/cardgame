@@ -964,6 +964,7 @@
     },
     award(race) {
       const d = Champ.d, row = {};
+      const rankBefore = Champ.standings(); // позиции в таблице до этапа
       race.racers.forEach(r => {
         const pts = window.POINTS_TABLE[r.place - 1] || 0;
         d.points[r.id] += pts;
@@ -974,8 +975,14 @@
         const mult = r.perks.includes('press') ? 1.4 : 1;
         const earned = Math.round((prize + r.fame) * mult);
         d.fame[r.id] += earned;
-        const mo = window.Gen.moraleAfter(window.Shop.ensure(d.roster[r.id]), r.place, r.crashes);
-        row[r.id] = { place: r.place, pts, prize, fame: r.fame, show: r.showFame, earned, press: mult > 1, mo };
+        row[r.id] = { place: r.place, pts, prize, fame: r.fame, show: r.showFame, earned, press: mult > 1 };
+      });
+      // мораль: место, аварии и движение в таблице чемпионата (после первого этапа таблицы ещё нет)
+      const rankAfter = Champ.standings();
+      race.racers.forEach(r => {
+        const shift = d.stage > 0 ? rankBefore.indexOf(r.id) - rankAfter.indexOf(r.id) : 0;
+        row[r.id].rankShift = shift;
+        row[r.id].mo = window.Gen.moraleAfter(window.Shop.ensure(d.roster[r.id]), r.place, r.crashes, shift);
       });
       d.history.push({ track: Champ.def().id, rain: d.weather && d.weather.rain, row });
       d.stage++;
@@ -1208,6 +1215,11 @@
     return `<svg class="flag" viewBox="0 0 30 20" width="${w}" height="${h}">${F[id] || ''}</svg>`;
   }
 
+  const sgn = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(Math.round(v));
+  const moraleTip = mo => `Мораль ${mo.before} → ${mo.after}: за место ${sgn(mo.parts.place)}` +
+    (mo.parts.crash ? `, аварии ${sgn(mo.parts.crash)}` : '') +
+    (mo.rankShift ? `, ${mo.rankShift > 0 ? 'поднялся' : 'опустился'} в таблице на ${Math.abs(mo.rankShift)} ${sgn(mo.parts.rank)}` : '') +
+    ', затем плавно к 50';
   const moraleEmoji = m => m >= 80 ? '🤩' : m >= 60 ? '😀' : m >= 40 ? '😐' : m >= 20 ? '😟' : '😰';
   const tierBadge = t => t ? `<span class="tier t-${t}" title="Уровень мастерства: ${window.TIERS[t].name}">${window.TIERS[t].icon} ${window.TIERS[t].name}</span>` : '';
   const perkBadges = (perks, full) => (perks || []).map(p => `<span class="perk ${window.PERKS[p].behavior ? 'beh' : ''}" title="${window.PERKS[p].name}: ${window.PERKS[p].desc}">${window.PERKS[p].icon}${full ? ' ' + window.PERKS[p].name : ''}</span>`).join('');
@@ -1294,7 +1306,7 @@
     return `<div class="ctable">${st.map((id, i) => `<div class="crow ${id === d.human ? 'me' : ''}" style="--rc:${RN(id).color};--w:${d.points[id] / max * 100}%;--i:${i}">
       <span class="cr-p">${i + 1}</span>${helmetId(id, 26)}<span class="cr-n">${RN(id).name}${id === d.human ? ' <small>ВЫ</small>' : ''}</span>
       <span class="cr-bar"><i></i></span><span class="cr-w">${d.wins[id] ? '🏆' + d.wins[id] : ''}</span>
-      <b class="cr-pts">${d.points[id]}</b>${highlight && highlight[id] && highlight[id].pts ? `<em>+${highlight[id].pts}</em>` : '<em></em>'}</div>`).join('')}</div>`;
+      <b class="cr-pts">${d.points[id]}</b>${highlight && highlight[id] && highlight[id].pts ? `<em>+${highlight[id].pts}</em>` : '<em></em>'}${highlight && highlight[id] && highlight[id].rankShift ? `<i class="rk ${highlight[id].rankShift > 0 ? 'up' : 'down'}" title="${highlight[id].rankShift > 0 ? 'Поднялся' : 'Опустился'} в таблице: мораль ${sgn(highlight[id].mo.parts.rank)}">${highlight[id].rankShift > 0 ? '▲' : '▼'}${Math.abs(highlight[id].rankShift)}</i>` : ''}</div>`).join('')}</div>`;
   }
 
   const Table = {
@@ -1322,7 +1334,7 @@
     $('#podium').innerHTML = [st[1], st[0], st[2]].map((r, i) => `<div class="pod p${[2, 1, 3][i]}" style="--rc:${r.color}">
       <div class="pod-ava">${Art.helmet(r, i === 1 ? 90 : 70)}</div><b>${r.name}</b><small>+${row[r.id].pts} очк.</small><div class="pod-col">${[2, 1, 3][i]}</div></div>`).join('');
     $('#resultsTable').innerHTML = `<div class="res-cols"><div><h3>Итоги гонки</h3><table><thead><tr><th>#</th><th>Гонщик</th><th>Очки</th><th title="призовые + зрелищность + шоу">Слава</th><th title="мораль после гонки (плавно стремится к 50)">Мораль</th><th>Попад.</th><th>Урон</th><th>Аварии</th></tr></thead><tbody>` +
-      st.map(r => `<tr class="${r.human ? 'me' : ''}"><td>${r.place}</td><td>${nm(r)}${r.dnf ? ' <small class="dnf">не финишировал</small>' : ''}</td><td class="pts">${row[r.id].pts ? '+' + row[r.id].pts : '—'}</td><td class="fame" title="призовые ★${row[r.id].prize} · в гонке ★${row[r.id].fame - row[r.id].show} · шоу ★${row[r.id].show}${row[r.id].press ? ' · любимец прессы ×1,4' : ''}">★${row[r.id].earned}${row[r.id].press ? ' 📸' : ''}</td><td class="mo ${row[r.id].mo.delta > 0 ? 'up' : row[r.id].mo.delta < 0 ? 'down' : ''}">${moraleEmoji(row[r.id].mo.after)} ${row[r.id].mo.after} <small>${row[r.id].mo.delta > 0 ? '▲+' + row[r.id].mo.delta : row[r.id].mo.delta < 0 ? '▼' + row[r.id].mo.delta : ''}</small></td><td>${r.hits}/${r.shots}</td><td>${Math.round(r.dmgDealt)}</td><td>${r.crashes}</td></tr>`).join('') +
+      st.map(r => `<tr class="${r.human ? 'me' : ''}"><td>${r.place}</td><td>${nm(r)}${r.dnf ? ' <small class="dnf">не финишировал</small>' : ''}</td><td class="pts">${row[r.id].pts ? '+' + row[r.id].pts : '—'}</td><td class="fame" title="призовые ★${row[r.id].prize} · в гонке ★${row[r.id].fame - row[r.id].show} · шоу ★${row[r.id].show}${row[r.id].press ? ' · любимец прессы ×1,4' : ''}">★${row[r.id].earned}${row[r.id].press ? ' 📸' : ''}</td><td class="mo ${row[r.id].mo.delta > 0 ? 'up' : row[r.id].mo.delta < 0 ? 'down' : ''}" title="${moraleTip(row[r.id].mo)}">${moraleEmoji(row[r.id].mo.after)} ${row[r.id].mo.after} <small>${row[r.id].mo.delta > 0 ? '▲+' + row[r.id].mo.delta : row[r.id].mo.delta < 0 ? '▼' + row[r.id].mo.delta : ''}</small></td><td>${r.hits}/${r.shots}</td><td>${Math.round(r.dmgDealt)}</td><td>${r.crashes}</td></tr>`).join('') +
       `</tbody></table></div><div><h3>Чемпионат</h3>${champTableHtml(row)}</div></div>`;
     const last = Champ.done;
     if (!last) aiShopping();
@@ -1462,7 +1474,7 @@
       <section><h3>Уровни мастерства и перки</h3><p>Каждый чемпионат состав генерируется заново. Уровень гонщика: ${Object.values(window.TIERS).map(t => `<b style="color:${t.color}">${t.icon} ${t.name}</b> (${Math.round(t.chance * 100)}%, сумма характеристик ${t.sum[0]}–${t.sum[1]})`).join(', ')}. С шансом ${Math.round(window.PERK_CHANCE * 100)}% гонщик получает перк, а один случайный обладатель перка — второй, другой. Перки разные по силе, некоторые меняют поведение ИИ (отмечены рамкой):</p>
         <div class="rgrid">${Object.values(window.PERKS).map(p => `<div class="rg"><span class="perk-big">${p.icon}</span><div><b>${p.name}</b>${p.behavior ? ' <small class="beh-l">поведение</small>' : ''}<p>${p.desc}</p></div></div>`).join('')}</div></section>
       <section><h3>Мораль и давка</h3><p>У каждого гонщика есть <b>мораль</b> от 0 до 100: у элиты в среднем выше, у новичков ниже. Мораль влияет на <b>твёрдость руки</b> — точность стрельбы от −10% (мораль 0) до +10% (мораль 100) — и на нервы в <b>давке</b>. С ${CFG.crowdFrom}-го раунда, если в соседних клетках (±1) двое и больше соперников, гонщик проверяет нервы. Чем больше толпа и ниже мораль, тем выше шанс «дрогнуть» (😰 −${String(CFG.crowdLoss[0]).replace('.', ',')}…${String(CFG.crowdLoss[1]).replace('.', ',')} к скорости) или сорваться (😱 ещё и потеря сцепления). Агрессор давит за двоих, Хладнокровный дрогнет вдвое реже.</p>
-        <p>После каждой гонки мораль меняется: победа поднимает её примерно на 12, последнее место опускает так же, каждая авария стоит −${CFG.moraleCrash}. Затем мораль плавно стремится к 50. <b>Спортивный психолог</b> в гараже замедляет спад после успехов и ускоряет восстановление после неудач.</p></section>
+        <p>После каждой гонки мораль меняется: победа поднимает её примерно на 12, последнее место опускает так же, каждая авария стоит −${CFG.moraleCrash}. А ещё <b>±${CFG.moraleRank} за каждую позицию</b>, отыгранную или потерянную в таблице чемпионата (до ±${CFG.moraleRankCap}): даже скромный финиш окрыляет, если при этом обошёл конкурента. Затем мораль плавно стремится к 50. <b>Спортивный психолог</b> в гараже замедляет спад после успехов и ускоряет восстановление после неудач.</p></section>
       <section><h3>Очерёдность</h3><p>Гонщики ходят строго по очереди, в порядке стартовой решётки. За ход гонщик: <b>1)</b> делает один обмен на своём поле «три в ряд»; <b>2)</b> получает бонусы от сгоревших блоков (каскады дают множитель ×1,5, ×2…); <b>3)</b> стреляет, если оружие заряжено и цель в секторе; <b>4)</b> передвигает фишку по трассе на число клеток, равное скорости. Если вы играете за гонщика, в свой ход поменяйте местами два соседних блока (перетаскиванием или двумя щелчками). Стрельба, нитро и торможение — автоматические.</p></section>
       <section><h3>Характеристики (1–20, у всех одинаковая сумма — ${CFG.STAT_TOTAL})</h3>
         <ul>
