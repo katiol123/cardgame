@@ -12,9 +12,9 @@
     };
   }
 
-  function rollStats(rand) {
+  function rollStats(rand, total) {
     const s = [CFG.STAT_MIN, CFG.STAT_MIN, CFG.STAT_MIN];
-    let left = CFG.STAT_TOTAL - 3 * CFG.STAT_MIN;
+    let left = (total || CFG.STAT_TOTAL) - 3 * CFG.STAT_MIN;
     const w = [rand() + 0.1, rand() + 0.1, rand() + 0.1];
     while (left > 0) {
       const tot = w.reduce((a, b, i) => a + (s[i] < CFG.STAT_MAX ? b : 0), 0);
@@ -27,14 +27,15 @@
   }
 
   // ---- производные характеристики ----
+  const has = (r, p) => !!(r.perks && r.perks.includes(p));
   const F = {
-    vmax: r => (CFG.vmaxBase + CFG.vmaxPer * r.stats.top + (r.tm.vmaxAdd || 0)) * (1 - CFG.hpSpeedFactor * (1 - r.hp / CFG.MAX_HP)),
-    vmaxRaw: r => CFG.vmaxBase + CFG.vmaxPer * r.stats.top + (r.tm.vmaxAdd || 0),
+    vmax: r => (CFG.vmaxBase + CFG.vmaxPer * r.stats.top + (r.tm.vmaxAdd || 0) - (has(r, 'heavy') ? 0.4 : 0) + (r.lastLap && has(r, 'tactic') ? 2.6 : 0)) * (1 - CFG.hpSpeedFactor * (1 - r.hp / CFG.MAX_HP)),
+    vmaxRaw: r => CFG.vmaxBase + CFG.vmaxPer * r.stats.top + (r.tm.vmaxAdd || 0) - (has(r, 'heavy') ? 0.4 : 0),
     accel: r => CFG.accBase + CFG.accPer * r.stats.accel,
     corner: (r, sev, grip) => CFG.cornerBase + CFG.cornerPer * r.stats.handling +
-      CFG.gripPer * (grip === undefined ? r.grip : grip) - (sev === 2 ? CFG.hairpinPenalty : 0) + (r.tm.cornerAdd || 0),
-    dodge: r => Math.min(0.45, CFG.dodgePer * r.stats.handling + CFG.gripDodge * r.grip),
-    nitroBoost: r => CFG.nitroBase + CFG.nitroPer * r.stats.top + 0.4 * r.crew.nitro
+      CFG.gripPer * (grip === undefined ? r.grip : grip) - (sev === 2 ? CFG.hairpinPenalty : 0) + (r.tm.cornerAdd || 0) + (has(r, 'stunt') ? 1.3 : 0),
+    dodge: r => Math.min(0.5, CFG.dodgePer * r.stats.handling + CFG.gripDodge * r.grip + (has(r, 'lucky') ? 0.1 : 0)),
+    nitroBoost: r => (CFG.nitroBase + CFG.nitroPer * r.stats.top + 0.7 * r.crew.nitro) * (has(r, 'tactic') ? 2.5 : 1)
   };
 
   const CELL_FX = {
@@ -78,8 +79,8 @@
       const need = Math.max(0, vm - r.speed) / vm;
       const W = [0, 0, 0, 0, 0, 0];
       W[0] = over > 0 ? 0.15 : 0.45 + need * 2.6;
-      W[1] = r.nitro >= CFG.nitroMax ? 0.05 : 0.75;
-      W[2] = r.charge >= w.charge ? 0.05 : 0.7 + (AI.preyNear(race, r) ? 0.8 : 0);
+      W[1] = r.nitro >= CFG.nitroMax && !has(r, 'tactic') ? 0.05 : 0.75;
+      W[2] = r.charge >= w.charge ? 0.05 : (0.7 + (AI.preyNear(race, r) ? 0.8 : 0)) * (has(r, 'aggro') ? 3 : 1);
       W[3] = r.shield >= CFG.shieldMax ? 0.05 : 0.45 + Math.min(1.2, AI.threats(race, r) * 0.4) - (r.shield / CFG.shieldMax) * 0.35;
       W[4] = r.hp >= CFG.MAX_HP ? 0.03 : (CFG.MAX_HP - r.hp) / CFG.MAX_HP * 2.8 + (r.hp < 35 ? 1.4 : 0);
       W[5] = over > 0 ? 1.3 + over * 0.9 : (r.grip < 2 ? 0.45 : r.grip >= CFG.gripMax ? 0.05 : 0.2);
@@ -102,6 +103,7 @@
       return best;
     },
     useNitro(race, r) {
+      if (has(r, 'tactic') && race.lapOf(r) < race.track.laps) return false; // копит до последнего круга
       const v = r.speed + F.nitroBoost(r);
       const ca = AI.cornerAhead(race, r, Math.ceil(v) + 1);
       return !ca.sev || v <= F.corner(r, ca.sev);
@@ -109,6 +111,7 @@
     pickTargets(race, r, list) {
       const w = r.weapon;
       if (w.effect.aoe) return list;
+      if (has(r, 'aggro')) return [list.slice().sort((a, b) => Math.abs(a.pos - r.pos) - Math.abs(b.pos - r.pos))[0]];
       if (w.effect.chain) return list.slice().sort((a, b) => Math.abs(a.pos - r.pos) - Math.abs(b.pos - r.pos)).slice(0, w.effect.chain);
       const st = race.standings();
       let best = null, bs = -1e9;
@@ -146,6 +149,7 @@
       this.turn = 0;
       this.over = false;
       this.finishOrder = [];
+      this.fx = []; // события перков для интерфейса: {id, text, color}
       this.firstFinishRound = 0;
       const weapons = G.WEAPONS.filter(w => !w.shop);
       const pool = [];
@@ -164,6 +168,7 @@
           human: id === opts.human,
           weapon: ros ? G.makeWeapon(ros.weapon, ros.wmods) : opts.weapon ? opts.weapon(id) : pool[id],
           crew: Object.assign({ mech: 0, gun: 0, armor: 0, nitro: 0 }, ros && ros.crew), fame: 0, showFame: 0,
+          perks: (ros && ros.perks) || [], tier: ros && ros.tier,
           board: new G.Board(this.rand),
           hp: CFG.MAX_HP, shield: 0, speed: 0, frac: 0,
           pos: -Math.floor(slot / 2), lane: slot % 2,
@@ -177,9 +182,9 @@
       this.order = grid.slice();
       // стартовые бонусы от команды
       this.racers.forEach(r => {
-        r.shield = 8 * r.crew.armor;
-        r.charge = Math.floor(r.weapon.charge * 0.25 * r.crew.gun);
-        r.nitro = Math.min(CFG.nitroMax, 2 * r.crew.nitro);
+        r.shield = 6 * r.crew.armor;
+        r.charge = Math.min(r.weapon.charge, Math.floor(r.weapon.charge * 0.4 * r.crew.gun));
+        r.nitro = Math.min(CFG.nitroMax, 3 * r.crew.nitro);
       });
     }
 
@@ -201,11 +206,13 @@
       if (!pierce) { absorbed = Math.min(t.shield, dmg); t.shield -= absorbed; }
       const real = dmg - absorbed;
       t.hp = Math.max(0, t.hp - real);
+      let lucky = false;
+      if (t.hp <= 0 && !t.skip && has(t, 'lucky') && !t.luckUsed) { t.hp = 1; t.luckUsed = true; lucky = true; this.fx.push({ id: t.id, text: '🍀 ЧУДО! Уцелел', color: '#2fdc74' }); }
       t.speed = Math.max(0, t.speed - real * CFG.hitSlowPer);
       t.dmgTaken += real;
       let crashed = false;
       if (t.hp <= 0 && !t.skip) { this.crash(t); crashed = true; }
-      return { absorbed, real, crashed };
+      return { absorbed, real, crashed, lucky };
     }
 
     crash(t) {
@@ -217,9 +224,11 @@
       const w = r.weapon, before = { speed: r.speed, nitro: r.nitro, charge: r.charge, shield: r.shield, hp: r.hp, grip: r.grip };
       const vm = F.vmax(r);
       r.speed = Math.min(vm, r.speed * (1 - CFG.drag) + F.accel(r) * (1 + CFG.fuelPer * tally[0]));
+      const over = Math.max(0, r.nitro + tally[1] - CFG.nitroMax);
       r.nitro = Math.min(CFG.nitroMax, r.nitro + tally[1]);
-      r.charge = Math.min(w.charge, r.charge + tally[2] * CFG.ammoPer);
-      r.shield = Math.min(CFG.shieldMax, r.shield + tally[3] * CFG.shieldPer);
+      if (over && has(r, 'tactic')) r.shield = Math.min(CFG.shieldMax, r.shield + over * 3); // излишки нитро — в броню
+      r.charge = Math.min(w.charge, r.charge + tally[2] * CFG.ammoPer * (1 + 0.1 * r.crew.gun));
+      r.shield = Math.min(CFG.shieldMax, r.shield + tally[3] * CFG.shieldPer * (has(r, 'heavy') ? 1.5 : 1));
       r.hp = Math.min(CFG.MAX_HP, r.hp + tally[4] * CFG.repairPer * (1 + 0.15 * r.crew.mech));
       r.grip = Math.min(CFG.gripMax, r.grip + tally[5]);
       return {
@@ -258,28 +267,39 @@
         if (!hit) return res;
         r.hits++;
         t.lastAttacker = r.id;
-        const d = this.applyDamage(t, Math.round(w.dmg * CFG.dmgMul), w.effect.pierce);
-        res.dmg = d.real; res.absorbed = d.absorbed; res.crashed = d.crashed;
+        const revenge = has(r, 'avenger') && r.revengeOn === t.id;
+        if (revenge) r.revengeOn = -1;
+        const d = this.applyDamage(t, Math.round(w.dmg * CFG.dmgMul * (has(r, 'aggro') ? 1.2 : 1) * (revenge ? 1.5 : 1)), w.effect.pierce);
+        if (revenge) res.effects.push('месть ×1,5');
+        res.dmg = d.real; res.absorbed = d.absorbed; res.crashed = d.crashed; res.lucky = d.lucky;
         r.dmgDealt += d.real;
         r.fame += G.ECON.fameHit + (d.crashed ? G.ECON.fameCrash : 0);
-        const e = w.effect;
-        if (e.slow) { t.speed = Math.max(0, t.speed - e.slow); res.effects.push(`−${e.slow} скорости`); }
-        if (e.burn && !t.skip) { t.burn = { dmg: e.burn.dmg, turns: e.burn.turns, src: r.id }; res.effects.push('поджог'); }
-        if (e.lock && !t.skip) { res.locked = t.board.lockRandom(e.lock, CFG.lockTurns); res.effects.push(`заморозка ${res.locked.length} блоков`); }
-        if (e.pull) {
+        const e = w.effect, cold = has(t, 'cold'), heavy = has(t, 'heavy'), fireproof = has(t, 'pyro');
+        if ((cold && (e.slow || e.lock || e.strip)) || (heavy && (e.pull || e.knock)) || (fireproof && e.burn)) res.effects.push('иммунитет');
+        if (e.slow && !cold) { t.speed = Math.max(0, t.speed - e.slow); res.effects.push(`−${e.slow} скорости`); }
+        if (e.burn && !t.skip && !fireproof) { t.burn = { dmg: e.burn.dmg, turns: e.burn.turns, src: r.id }; res.effects.push('поджог'); }
+        else if (has(r, 'pyro') && !t.skip && !fireproof && !t.burn) { t.burn = { dmg: 4, turns: 3, src: r.id }; res.effects.push('поджог'); }
+        if (e.lock && !t.skip && !cold) { res.locked = t.board.lockRandom(e.lock, CFG.lockTurns); res.effects.push(`заморозка ${res.locked.length} блоков`); }
+        if (has(t, 'avenger') && !t.skip) { t.charge = Math.min(t.weapon.charge, t.charge + 3); t.revengeOn = r.id; this.fx.push({ id: t.id, text: '💢 МЕСТЬ!', color: '#ff5470' }); }
+        if (e.pull && !heavy) {
           const st = Math.min(t.speed, e.pull);
           t.speed -= st; r.speed = Math.min(F.vmax(r) + 1, r.speed + st);
           res.effects.push(`кража скорости ${st.toFixed(1)}`);
         }
-        if (e.knock) { res.knockFrom = t.pos; t.pos -= e.knock; res.knockTo = t.pos; res.effects.push(`отброшен на ${e.knock}`); }
-        if (e.strip) { t.grip = 0; res.effects.push('сцепление потеряно'); }
+        if (e.knock && !heavy) { res.knockFrom = t.pos; t.pos -= e.knock; res.knockTo = t.pos; res.effects.push(`отброшен на ${e.knock}`); }
+        if (e.strip && !cold) { t.grip = 0; res.effects.push('сцепление потеряно'); }
         return res;
       });
       return { attacker: r, weapon: w, hits };
     }
 
     move(r) {
+      r.lastLap = this.lapOf(r) >= this.track.laps;
       const tr = this.track, vm = F.vmax(r);
+      if (has(r, 'drafter') && this.racers.some(o => o !== r && !o.finished && o.pos - r.pos >= 1 && o.pos - r.pos <= 3)) {
+        r.speed = Math.min(vm + 0.5, r.speed + 0.5);
+        this.fx.push({ id: r.id, text: '🌀 слипстрим', color: '#9fe8ff' });
+      }
       let boost = 0;
       if (r.nitro >= CFG.nitroMax && AI.useNitro(this, r)) { boost = F.nitroBoost(r); r.nitro = 0; }
       const sevOver = (v, frac) => {
@@ -291,8 +311,8 @@
       let sev = sevOver(v, r.frac);
       let brake = 0;
       // торможение перед поворотом (ограничено мощностью тормозов)
-      if (sev && v > F.corner(r, sev) + 0.01) {
-        brake = Math.min(v - F.corner(r, sev), CFG.brakePower, r.speed);
+      if (sev && v > F.corner(r, sev) + 0.01 && !has(r, 'stunt')) {
+        brake = Math.min(v - F.corner(r, sev), CFG.brakePower * (has(r, 'cold') ? 2 : 1), r.speed);
         r.speed -= brake; v -= brake;
         sev = sevOver(v, r.frac);
       }
@@ -305,10 +325,10 @@
           const over = v - lim;
           cells = Math.max(1, Math.floor(lim + r.frac));
           r.frac = 0;
-          r.speed = Math.max(0.5, lim * CFG.skidKeep);
+          r.speed = Math.max(0.5, lim * (has(r, 'stunt') ? 0.95 : CFG.skidKeep));
           r.grip = 0;
           r.skids++;
-          const dmg = Math.round(over * CFG.skidDamage);
+          const dmg = Math.round(over * CFG.skidDamage * (has(r, 'stunt') ? 0.2 : 1));
           const d = this.applyDamage(r, dmg, true);
           skid = { over, lim, dmg: d.real, crashed: d.crashed, sev };
         } else {
@@ -319,29 +339,54 @@
       const from = r.pos;
       if (!skid || !skid.crashed) r.pos += cells; else r.pos += Math.max(0, cells - 1);
       const to = r.pos;
+      // барахольщик: бонусы клеток по пути
+      const picked = [];
+      if (has(r, 'magnet') && !r.skip) {
+        for (let k = from + 1; k < to; k++) {
+          const pc = tr.cell(k);
+          if (k > 0 && ['boost', 'ammo', 'repair', 'nitro', 'shield'].includes(pc.kind)) { this.cellEffect(r, pc); picked.push({ kind: pc.kind, pos: k }); }
+        }
+      }
       // эффект клетки приземления
       let cellFx = null;
       const c = tr.cell(r.pos);
-      if (!r.skip && c.kind !== 'plain' && r.pos > 0 && r.pos < tr.total) {
-        cellFx = { kind: c.kind };
-        if (c.kind === 'boost') r.speed = Math.min(vm, r.speed + 2);
-        else if (c.kind === 'ammo') r.charge = Math.min(r.weapon.charge, r.charge + 3);
-        else if (c.kind === 'repair') r.hp = Math.min(CFG.MAX_HP, r.hp + 12 + 8 * r.crew.mech);
-        else if (c.kind === 'nitro') r.nitro = Math.min(CFG.nitroMax, r.nitro + 3);
-        else if (c.kind === 'shield') r.shield = Math.min(CFG.shieldMax, r.shield + 9);
-        else if (c.kind === 'jump') {
-          cellFx.from = r.pos; r.pos += tr.jumpLen; cellFx.to = r.pos;
-          const d = this.applyDamage(r, 4, false); cellFx.dmg = d.real; cellFx.crashed = d.crashed;
-        }
-        else if (c.kind === 'hazard') { const d = this.applyDamage(r, Math.round(7 * (this.mods.hazardMul || 1)), false); r.speed = Math.max(0, r.speed - 1); cellFx.dmg = d.real; cellFx.crashed = d.crashed; }
-      }
+      if (!r.skip && c.kind !== 'plain' && r.pos > 0 && r.pos < tr.total) cellFx = this.cellEffect(r, c);
       let finished = false;
       if (r.pos >= tr.total) {
         r.finished = true; r.place = this.finishOrder.length + 1; r.finishRound = this.round;
         this.finishOrder.push(r.id); finished = true;
         if (!this.firstFinishRound) this.firstFinishRound = this.round;
       }
-      return { from, to, cells, boost, brake, sev, skid, cellFx, finished };
+      return { from, to, cells, boost, brake, sev, skid, cellFx, picked, finished };
+    }
+
+    jackpot(r) {
+      const t = Math.floor(this.rand() * 6), names = ['скорость', 'нитро', 'заряд', 'щит', 'ремонт', 'сцепление'];
+      if (t === 0) r.speed = Math.min(F.vmax(r), r.speed + F.accel(r) * CFG.fuelPer * 3);
+      else if (t === 1) r.nitro = Math.min(CFG.nitroMax, r.nitro + 3);
+      else if (t === 2) r.charge = Math.min(r.weapon.charge, r.charge + 3 * CFG.ammoPer);
+      else if (t === 3) r.shield = Math.min(CFG.shieldMax, r.shield + 3 * CFG.shieldPer);
+      else if (t === 4) r.hp = Math.min(CFG.MAX_HP, r.hp + 3 * CFG.repairPer);
+      else r.grip = Math.min(CFG.gripMax, r.grip + 3);
+      this.fx.push({ id: r.id, text: `🎰 ДЖЕКПОТ: ${names[t]}`, color: '#ffd23f' });
+    }
+
+    cellEffect(r, c) {
+      const tr = this.track, vm = F.vmax(r), fx = { kind: c.kind }, stunt = has(r, 'stunt');
+      if (c.kind === 'boost') r.speed = Math.min(vm, r.speed + 2);
+      else if (c.kind === 'ammo') r.charge = Math.min(r.weapon.charge, r.charge + 3);
+      else if (c.kind === 'repair') r.hp = Math.min(CFG.MAX_HP, r.hp + 12 + 8 * r.crew.mech);
+      else if (c.kind === 'nitro') r.nitro = Math.min(CFG.nitroMax, r.nitro + 3);
+      else if (c.kind === 'shield') r.shield = Math.min(CFG.shieldMax, r.shield + 9);
+      else if (c.kind === 'jump') {
+        fx.from = r.pos; r.pos += tr.jumpLen + (stunt ? 2 : 0); fx.to = r.pos;
+        const d = this.applyDamage(r, stunt ? 0 : 4, false); fx.dmg = d.real; fx.crashed = d.crashed;
+      } else if (c.kind === 'hazard') {
+        const d = this.applyDamage(r, stunt ? 0 : Math.round(7 * (this.mods.hazardMul || 1)), false);
+        if (!stunt) r.speed = Math.max(0, r.speed - 1);
+        fx.dmg = d.real; fx.crashed = d.crashed;
+      }
+      return fx;
     }
 
     // нужен ли ход человека (поле ждёт ввода)
@@ -366,6 +411,7 @@
         this.advance();
         return res;
       }
+      if (r.burn && has(r, 'pyro')) r.burn = null;
       if (r.burn) {
         const b = r.burn;
         b.turns--; if (b.turns <= 0) r.burn = null;
@@ -385,6 +431,8 @@
       res.match = r.board.execute(mv[0], mv[1]);
       if (res.match.combo >= 3) r.fame += G.ECON.fameCombo * (res.match.combo - 2);
       res.gains = this.applyGains(r, res.match.tally);
+      if (r.crew.mech) r.hp = Math.min(CFG.MAX_HP, r.hp + 1.5 * r.crew.mech);
+      if (has(r, 'gambler') && this.rand() < 0.15) this.jackpot(r);
       res.attack = this.tryAttack(r);
       res.move = this.move(r);
       res.fame = r.fame - fame0;
@@ -414,5 +462,5 @@
     }
   }
 
-  G.Race = Race; G.RaceF = F; G.RaceAI = AI; G.CELL_FX = CELL_FX; G.mulberry32 = mulberry32; G.rollStats = rollStats;
+  G.Race = Race; G.RaceF = F; G.hasPerk = has; G.RaceAI = AI; G.CELL_FX = CELL_FX; G.mulberry32 = mulberry32; G.rollStats = rollStats;
 })(typeof window !== 'undefined' ? window : globalThis);

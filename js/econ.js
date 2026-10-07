@@ -8,6 +8,7 @@
   function ensure(ros) {
     ros.wmods = Object.assign({ cal: 0, mag: 0, aim: 0 }, ros.wmods);
     ros.crew = Object.assign({ mech: 0, gun: 0, armor: 0, nitro: 0 }, ros.crew);
+    ros.perks = ros.perks || [];
     return ros;
   }
   const weaponOf = ros => G.WEAPONS.find(w => w.id === ros.weapon);
@@ -19,15 +20,15 @@
     const out = [];
     Object.keys(STAT_NAME).forEach(k => {
       const v = ros.stats[k];
-      if (v < E.statMax) out.push({ type: 'stat', key: k, lvl: v, price: E.statCost(v) });
+      if (v < E.statMax) out.push({ type: 'stat', key: k, lvl: v, price: E.statCost(k, v) });
     });
     Object.keys(E.wmods).forEach(k => {
       const l = ros.wmods[k];
-      if (l < 3) out.push({ type: 'wmod', key: k, lvl: l, price: E.wmodCost[l] });
+      if (l < 3) out.push({ type: 'wmod', key: k, lvl: l, price: E.wmodCost[k][l] });
     });
     Object.keys(E.crew).forEach(k => {
       const l = ros.crew[k];
-      if (l < 3) out.push({ type: 'crew', key: k, lvl: l, price: E.crewCost[l] });
+      if (l < 3) out.push({ type: 'crew', key: k, lvl: l, price: E.crewCost[k][l] });
     });
     const sell = sellValue(ros);
     G.WEAPONS.forEach(w => {
@@ -67,10 +68,11 @@
       if (!can.length) break;
       let best = null, bs = -1;
       for (const o of can) {
-        let v = o.type === 'stat' ? 1.0 : o.type === 'wmod' ? 0.85 : o.type === 'crew' ? 0.8 :
-          1.5 * (RANK[G.WEAPONS.find(w => w.id === o.key).rarity] - curRank());
+        // ценность = измеренная сила апгрейда (в местах), у пушки — по редкости
+        let v = o.type === 'weapon' ? 0.3 * (RANK[G.WEAPONS.find(w => w.id === o.key).rarity] - curRank()) : E.value[o.type][o.key];
         if (o.type === 'stat') v *= 1.25 - ros.stats[o.key] / 25; // слабые характеристики тянет подтянуть
-        const s = v / Math.max(20, o.price) * (0.6 + rand() * 0.8);
+        if (o.type === 'wmod' || (o.type === 'crew' && o.key === 'gun')) v += 0.05;   // оружейные апы ещё и приносят славу за попадания
+        const s = v / Math.max(15, o.price) * (0.6 + rand() * 0.8);
         if (s > bs) { bs = s; best = o; }
       }
       apply(ros, best);
@@ -80,5 +82,36 @@
     return { wallet, bought };
   }
 
+  /* Генерация состава: уровень мастерства, перки, оружие */
+  function rollTier(rand) {
+    const x = rand();
+    return x < G.TIERS.elite.chance ? 'elite' : x < G.TIERS.elite.chance + G.TIERS.pro.chance ? 'pro' : 'rookie';
+  }
+  function rollRoster(rand) {
+    const base = G.WEAPONS.filter(w => !w.shop).map(w => w.id), ws = [];
+    while (ws.length < 16) {
+      const b = base.slice();
+      for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; }
+      ws.push(...b);
+    }
+    const keys = Object.keys(G.PERKS);
+    const roster = G.RACERS.map((_, i) => {
+      const tier = rollTier(rand), [lo, hi] = G.TIERS[tier].sum;
+      const total = lo + Math.floor(rand() * (hi - lo + 1));
+      const perks = rand() < G.PERK_CHANCE ? [keys[Math.floor(rand() * keys.length)]] : [];
+      return ensure({ tier, stats: G.rollStats(rand, total), weapon: ws[i], perks });
+    });
+    // один (и только один) из обладателей перка получает второй, другой
+    const holders = roster.filter(r => r.perks.length);
+    if (holders.length) {
+      const lucky = holders[Math.floor(rand() * holders.length)];
+      const rest = keys.filter(k => k !== lucky.perks[0]);
+      lucky.perks.push(rest[Math.floor(rand() * rest.length)]);
+    }
+    return roster;
+  }
+  const statSum = ros => ros.stats.accel + ros.stats.top + ros.stats.handling;
+
+  G.Gen = { rollRoster, rollTier, statSum };
   G.Shop = { ensure, options, apply, label, aiSpend, sellValue, weaponOf, RANK, STAT_NAME };
 })(typeof window !== 'undefined' ? window : globalThis);
