@@ -813,3 +813,13 @@ svg.face .fx-tear { animation: fxTear 2s ease-in infinite; }
 .g-nm { display: inline-block; min-width: 190px; }
 .perk.amb { border-color: rgba(255,210,63,.7); box-shadow: 0 0 8px rgba(255,210,63,.35); }
 .amb-l { color: #ffd23f; font-size: 10px; border: 1px solid rgba(255,210,63,.5); border-radius: 5px; padding: 0 4px; }
+
+/* поломки */
+.segs i.broke { background: repeating-linear-gradient(-45deg, #ff3355 0 3px, #7a0f22 3px 6px) !important; box-shadow: 0 0 6px rgba(255,51,85,.6); }
+.stat b s { color: var(--muted); font-size: 12px; }
+.perk.brk { border-color: rgba(255,122,0,.7); color: #ffb36b; }
+.pt-st i { display: flex; }
+.pt-st i b.brk-bg { background: repeating-linear-gradient(-45deg, #ff3355 0 3px, #7a0f22 3px 6px); border-radius: 0 3px 3px 0; }
+.ds-stat small .up { color: #7af0a8; } .ds-stat small .down { color: #ff7a8a; }
+.brk-item { border-color: rgba(255,122,0,.45); background: rgba(255,122,0,.06); }
+.g-main b small { color: #ff7a8a; font-weight: 600; margin-left: 4px; }

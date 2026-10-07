@@ -583,11 +583,16 @@
   // =====================================================================
   //                       КАРТОЧКА ГОНЩИКА / ТАБЛИЦА
   // =====================================================================
-  function statBar(label, v, hint, cls) {
+  // broken — сколько сегментов «выбито» поломкой (рисуются красными поверх базового значения)
+  function statBar(label, v, hint, cls, broken) {
     let segs = '';
-    for (let i = 1; i <= 20; i++) segs += `<i class="${i <= v ? 'on' : ''}"></i>`;
-    return `<div class="stat ${cls}"><div class="stat-l">${label}<span>${hint}</span></div><div class="segs">${segs}</div><b>${v}</b></div>`;
+    const b = broken || 0;
+    for (let i = 1; i <= 20; i++) segs += `<i class="${i <= v - b ? 'on' : i <= v ? 'broke' : ''}"></i>`;
+    return `<div class="stat ${cls}"><div class="stat-l">${label}<span>${hint}</span></div><div class="segs">${segs}</div><b>${b ? `<s>${v}</s> ${v - b}` : v}</b></div>`;
   }
+  const brokenOf = (ros, k) => (ros && ros.broken || []).filter(x => x.stat === k).reduce((a, x) => a + x.amount, 0);
+  const PARTN = { accel: 'двигатель', top: 'трансмиссия', handling: 'подвеска' };
+  const brokeTags = ros => (ros && ros.broken || []).map(b => `<span class="perk brk" title="Сломан ${PARTN[b.stat]}: ${window.Shop.STAT_NAME[b.stat]} −${b.amount}. Без ремонта через ${b.left} эт. спонсор поставит дешёвую запчасть (−${CFG.sponsorLoss} навсегда)">🔧 ${PARTN[b.stat]} −${b.amount}</span>`).join('');
 
   function placeOf(r) { return state.race.standings().indexOf(r) + 1; }
 
@@ -607,13 +612,13 @@
         <div class="rc-id" style="--rc:${r.color}">
           <div class="rc-ava">${faceR(r, 84)}</div>
           <div class="rc-name"><small>№${r.num}${r.human ? ' · ВЫ' : ''}</small>${r.name}</div>
-          <div class="rc-tags">${tierBadge(r.tier)}${perkBadges(r.perks, true)}</div>
+          <div class="rc-tags">${tierBadge(r.tier)}${perkBadges(r.perks, true)}${brokeTags(r)}</div>
           <div class="rc-tags"><span class="tag place" id="c-place"></span><span class="tag" id="c-lap"></span><span class="tag status" id="c-status"></span><span class="tag champ" id="c-champ"></span></div>
         </div>
         <div class="rc-stats">
-          ${statBar('Разгон', r.stats.accel, `+${fmt(F.accel(r))} скор./ход`, 's-acc')}
-          ${statBar('Макс. скорость', r.stats.top, `до ${fmt(F.vmaxRaw(r))} кл.`, 's-top')}
-          ${statBar('Маневренность', r.stats.handling, `поворот ≤${fmt(F.corner(r, 1, 0))} · уворот ${Math.round(CFG.dodgePer * r.stats.handling * 100)}%`, 's-han')}
+          ${statBar('Разгон', r.baseStats ? r.baseStats.accel : r.stats.accel, `+${fmt(F.accel(r))} скор./ход`, 's-acc', r.baseStats ? r.baseStats.accel - r.stats.accel : 0)}
+          ${statBar('Макс. скорость', r.baseStats ? r.baseStats.top : r.stats.top, `до ${fmt(F.vmaxRaw(r))} кл.`, 's-top', r.baseStats ? r.baseStats.top - r.stats.top : 0)}
+          ${statBar('Маневренность', r.baseStats ? r.baseStats.handling : r.stats.handling, `поворот ≤${fmt(F.corner(r, 1, 0))} · уворот ${Math.round(CFG.dodgePer * r.stats.handling * 100)}%`, 's-han', r.baseStats ? r.baseStats.handling - r.stats.handling : 0)}
         </div>
         <div class="rc-gauges">
           <div class="speedo" id="m-speed">${Card.speedo()}</div>
@@ -1007,6 +1012,9 @@
           crashes: r.crashes, kills: r.kills, rankShift: shift,
           fameTop: r.fame === top && top > bottom, fameBottom: r.fame === bottom && top > bottom
         });
+        // поломки: новые, самопочинка механиком, дешёвые запчасти спонсора
+        row[r.id].brk = window.Gen.afterRaceDamage(d.roster[r.id], r.breaks, Math.random);
+        d.roster[r.id].champRank = row[r.id].rank;
       });
       d.history.push({ track: Champ.def().id, rain: d.weather && d.weather.rain, row });
       d.stage++;
@@ -1406,8 +1414,11 @@
       let body = '';
       if (Garage.tab === 'bike') {
         const ST = [['accel', 'Разгон', 'c-acc', 's-acc', `+${String(CFG.accPer).replace('.', ',')} к приросту скорости за ход`], ['top', 'Макс. скорость', 'c-top', 's-top', `+${fmt(CFG.vmaxPer)} клетки к потолку и сильнее нитро`], ['handling', 'Маневренность', 'c-han', 's-han', `+${fmt(CFG.cornerPer)} к пределу в поворотах и +${fmt(CFG.dodgePer * 100)}% уворота`]];
-        body = `<p class="g-hint">Каждая покупка добавляет +1 к характеристике (максимум 20). Цена растёт с уровнем.</p>` + ST.map(([k, n, c, sc, eff]) =>
-          `<div class="g-item"><div class="g-main"><b class="${c}">${n}</b><small>${eff}</small>${statBar('', ros.stats[k], '', sc).replace('<div class="stat-l"><span></span></div>', '')}</div>${buyBtn(find('stat', k), '+1')}</div>`).join('');
+        const reps = opts.filter(o => o.type === 'repair');
+        body = (reps.length ? `<h4>🔧 Ремонт</h4><p class="g-hint">Ремонт — дорогое удовольствие: чем выше сломанная характеристика, тем дороже деталь; лидерам дороже, аутсайдерам дешевле, механик даёт скидку. Если не чинить, через несколько этапов спонсор поставит дешёвую запчасть — характеристика упадёт на ${CFG.sponsorLoss} навсегда.</p>` +
+          reps.map(o => { const b = ros.broken[o.key]; return `<div class="g-item brk-item"><div class="g-ic">🔧</div><div class="g-main"><b>${PARTN[o.stat]} <small>${window.Shop.STAT_NAME[o.stat]} −${o.amount}</small></b><small>Без ремонта через ${b.left} эт. — дешёвая запчасть от спонсора, −${CFG.sponsorLoss} навсегда</small></div>${buyBtn(o, 'Починить')}</div>`; }).join('') + '<h4>Прокачка</h4>' : '') +
+          `<p class="g-hint">Каждая покупка добавляет +1 к характеристике (максимум 20). Цена растёт с уровнем.</p>` + ST.map(([k, n, c, sc, eff]) =>
+          `<div class="g-item"><div class="g-main"><b class="${c}">${n}</b><small>${eff}</small>${statBar('', ros.stats[k], '', sc, brokenOf(ros, k)).replace('<div class="stat-l"><span></span></div>', '')}</div>${buyBtn(find('stat', k), '+1')}</div>`).join('');
       } else if (Garage.tab === 'weapon') {
         const R = window.RARITY;
         body = `<div class="g-cur" style="--wc:${w.color}">${Art.weaponIcon(w, 46)}<div><small>Текущее оружие · <span style="color:${R[w.rarity].color}">${R[w.rarity].name}</span></small><b>${w.name}</b><small>${w.desc}</small></div><div class="g-sell">продажа: ★${window.Shop.sellValue(ros)}</div></div>
@@ -1438,7 +1449,7 @@
     },
     buy(btn) {
       const d = Champ.d, id = d.human, ros = d.roster[id];
-      const o = window.Shop.options(ros).find(x => x.type === btn.dataset.type && x.key === btn.dataset.key);
+      const o = window.Shop.options(ros).find(x => x.type === btn.dataset.type && String(x.key) === btn.dataset.key);
       if (!o || o.price > d.fame[id]) return;
       window.Shop.apply(ros, o);
       (ros.buys = ros.buys || []).push({ stage: d.stage, label: window.Shop.label(o), price: o.price, type: o.type });
@@ -1496,8 +1507,14 @@
     const hi = by(r => row[r.id].mo.after, 1), lo = by(r => row[r.id].mo.after, -1);
     if (row[hi.id].mo.after >= 75) H.push({ ic: '🔥', t: `${nmId(hi.id)} на кураже — мораль ${row[hi.id].mo.after}` });
     if (row[lo.id].mo.after <= 30) H.push({ ic: '😞', t: `${nmId(lo.id)} падает духом — мораль ${row[lo.id].mo.after}` });
+    race.racers.forEach(r => (row[r.id].brk || []).forEach(e => {
+      if (e.type === 'broke') H.push({ ic: '🔧', t: `${nmId(r.id)} ломает ${PARTN[e.stat]} — ${window.Shop.STAT_NAME[e.stat].toLowerCase()} −${CFG.breakAmount}, пока не починят` });
+      if (e.type === 'sponsor') H.push({ ic: '🪛', t: `Спонсор ставит ${nmId(r.id)} дешёвый ${PARTN[e.stat]}: ${window.Shop.STAT_NAME[e.stat].toLowerCase()} −${e.loss} навсегда` });
+      if (e.type === 'mechfix') H.push({ ic: '🛠', t: `Механик ${nmId(r.id)} своими руками чинит ${PARTN[e.stat]}` });
+    }));
     const show = by(r => r.showFame, 1);
     if (show.showFame >= 20) H.push({ ic: '🎉', t: `Шоу этапа: ${nmId(show.id)} зарабатывает ★${show.showFame} славы уже после финиша` });
+    buys.forEach(b => b.items.filter(i => i.type === 'repair').forEach(i => H.push({ ic: '🛠', t: `${nmId(b.id)} оплачивает ${i.label.toLowerCase()} за ★${i.price}` })));
     buys.forEach(b => b.items.filter(i => i.type === 'weapon').forEach(i => {
       const wp = WEAPONS.find(x => x.id === i.key);
       if (window.Shop.RANK[wp.rarity] >= 1) H.push({ ic: '💰', t: `${nmId(b.id)} покупает ${window.RARITY[wp.rarity].name.toLowerCase()} оружие: ${wp.name}` });
@@ -1533,11 +1550,11 @@
       const d = Champ.d, ros = window.Shop.ensure(d.roster[id]), w = window.makeWeapon(ros.weapon, ros.wmods), R = window.RARITY[w.rarity];
       const lr = last && last.row[id];
       const mo = lr && lr.mo ? lr.mo.delta : 0, rk = lr && lr.rankShift ? lr.rankShift : 0;
-      const st = (k, c, n) => `<div class="pt-st"><span class="${c}">${n}</span><i><b class="${c}-bg" style="width:${ros.stats[k] * 5}%"></b></i><em>${ros.stats[k]}</em></div>`;
+      const st = (k, c, n) => { const bk = brokenOf(ros, k); return `<div class="pt-st"><span class="${c}">${n}</span><i><b class="${c}-bg" style="width:${(ros.stats[k] - bk) * 5}%"></b>${bk ? `<b class="brk-bg" style="width:${bk * 5}%"></b>` : ''}</i><em>${bk ? ros.stats[k] - bk : ros.stats[k]}</em></div>`; };
       const crew = Object.entries(window.ECON.crew).filter(([k]) => ros.crew[k]).map(([k, c]) => `<span title="${c.name}: ур. ${ros.crew[k]}">${c.icon}${ros.crew[k]}</span>`).join('') || '<small>команда не нанята</small>';
       const tune = ['cal', 'mag', 'aim'].filter(k => ros.wmods[k]).map(k => `${window.ECON.wmods[k].icon}${ros.wmods[k]}`).join(' ');
       return `<div class="pt ${id === d.human ? 'me' : ''}" style="--rc:${RN(id).color};--i:${i}">
-        <div class="pt-h"><span class="pt-pos">${i + 1}</span>${faceId(id, 46)}<div class="pt-n"><b class="rn" data-rid="${id}">${RN(id).name}${id === d.human ? ' <small>ВЫ</small>' : ''}</b><div>${tierBadge(ros.tier)}${perkBadges(ros.perks)}</div></div>
+        <div class="pt-h"><span class="pt-pos">${i + 1}</span>${faceId(id, 46)}<div class="pt-n"><b class="rn" data-rid="${id}">${RN(id).name}${id === d.human ? ' <small>ВЫ</small>' : ''}</b><div>${tierBadge(ros.tier)}${perkBadges(ros.perks)}${(ros.broken || []).map(b => `<span class="perk brk" title="Сломан ${PARTN[b.stat]} −${b.amount}">🔧</span>`).join('')}</div></div>
           <div class="pt-pts"><b>${d.points[id]}</b><small>оч.</small>${rk ? `<i class="rk2 ${rk > 0 ? 'up' : 'down'}">${rk > 0 ? '▲' : '▼'}${Math.abs(rk)}</i>` : ''}</div></div>
         <div class="pt-row"><span title="Мораль">${moraleEmoji(ros.morale)} ${ros.morale}${mo ? ` <small class="${mo > 0 ? 'up' : 'down'}">${mo > 0 ? '+' : ''}${mo}</small>` : ''}</span><span title="Слава в кошельке">★${d.fame[id]}</span><span title="Побед / подиумов">🏆${d.wins[id]} · 🥉${d.podiums[id]}</span></div>
         ${st('accel', 'c-acc', 'Р')}${st('top', 'c-top', 'С')}${st('handling', 'c-han', 'М')}
@@ -1577,7 +1594,8 @@
       const avgPlace = hist.length ? (hist.reduce((a, x) => a + x.r.place, 0) / hist.length).toFixed(1).replace('.', ',') : '—';
       const statRow = (k, n, c, sc) => {
         const base = ros.base ? ros.base[k] : ros.stats[k], up = ros.stats[k] - base;
-        return `<div class="ds-stat"><b class="${c}">${n}</b>${statBar('', ros.stats[k], '', sc).replace('<div class="stat-l"><span></span></div>', '')}${up ? `<small class="up">+${up} прокачано</small>` : '<small>без прокачки</small>'}</div>`;
+        const lost = (ros.lost && ros.lost[k]) || 0, bought = up + lost;
+        return `<div class="ds-stat"><b class="${c}">${n}</b>${statBar('', ros.stats[k], '', sc, brokenOf(ros, k)).replace('<div class="stat-l"><span></span></div>', '')}<small>${bought ? `<span class="up">+${bought} прокачано</span>` : 'без прокачки'}${lost ? ` · <span class="down">−${lost} дешёвые запчасти спонсора</span>` : ''}${brokenOf(ros, k) ? ` · <span class="down">🔧 сломан ${PARTN[k]} −${brokenOf(ros, k)}</span>` : ''}</small></div>`;
       };
       // график морали по этапам
       const pts = [ros.morale0 !== undefined ? ros.morale0 : (hist[0] && hist[0].r.mo ? hist[0].r.mo.before : ros.morale)].concat(hist.map(x => x.r.mo ? x.r.mo.after : ros.morale));
@@ -1654,6 +1672,7 @@
         <div class="rgrid">${Object.values(window.PERKS).map(p => `<div class="rg"><span class="perk-big">${p.icon}</span><div><b>${p.name}</b>${p.behavior ? ' <small class="beh-l">поведение</small>' : ''}${p.ambiguous ? ' <small class="amb-l">⚖ неоднозначный</small>' : ''}<p>${p.desc}</p></div></div>`).join('')}</div></section>
       <section><h3>Мораль и давка</h3><p>У каждого гонщика есть <b>мораль</b> от 0 до 100: у элиты в среднем выше, у новичков ниже. Мораль влияет на <b>твёрдость руки</b> — точность стрельбы от −10% (мораль 0) до +10% (мораль 100) — и на нервы в <b>давке</b>. С ${CFG.crowdFrom}-го раунда, если в соседних клетках (±1) двое и больше соперников, гонщик проверяет нервы. Чем больше толпа и ниже мораль, тем выше шанс «дрогнуть» (😰 −${String(CFG.crowdLoss[0]).replace('.', ',')}…${String(CFG.crowdLoss[1]).replace('.', ',')} к скорости) или, в ${Math.round(CFG.breakdownChance * 100)}% провалов, сорваться (😱 нервный срыв — <b>пропуск следующего хода</b>). Агрессор давит за двоих, Хладнокровный дрогнет вдвое реже.</p>
         <p>Место в гонке на мораль <b>не влияет</b>. После каждой гонки мораль меняется так: <b>±${CFG.moraleRank} за каждую позицию</b>, отыгранную или потерянную в таблице чемпионата (до ±${CFG.moraleRankCap}, начиная с 3-го этапа); −${CFG.moraleCrash} за каждую свою аварию; +${CFG.moraleKill} за каждого соперника, отправленного в аварию своим выстрелом; +${CFG.moraleFameTop} тому, кто заработал больше всех славы действиями в гонке (без призовых), и −${CFG.moraleFameBottom} тому, кто заработал меньше всех. Затем мораль плавно стремится к 50. <b>Спортивный психолог</b> в гараже замедляет спад после успехов и ускоряет восстановление после неудач.</p></section>
+      <section><h3>Поломки и ремонт</h3><p>При аварии с шансом ${Math.round(CFG.breakChance * 100)}% ломается узел байка: двигатель (разгон), трансмиссия (макс. скорость) или подвеска (маневренность) — характеристика −${CFG.breakAmount} со следующего этапа. Ремонт в гараже — дорогое удовольствие: чем выше сломанная характеристика, тем дороже деталь; лидерам дороже, аутсайдерам дешевле; механик даёт скидку и может починить сам. Если не чинить ${CFG.breakRaces} этапа, спонсор поставит дешёвую запчасть: поломка уйдёт, но характеристика упадёт на ${CFG.sponsorLoss} навсегда.</p></section>
       <section><h3>Очерёдность</h3><p>Гонщики ходят строго по очереди, в порядке стартовой решётки. За ход гонщик: <b>1)</b> делает один обмен на своём поле «три в ряд»; <b>2)</b> получает бонусы от сгоревших блоков (каскады дают множитель ×1,5, ×2…); <b>3)</b> стреляет, если оружие заряжено и цель в секторе; <b>4)</b> передвигает фишку по трассе на число клеток, равное скорости. Если вы играете за гонщика, в свой ход поменяйте местами два соседних блока (перетаскиванием или двумя щелчками). Стрельба, нитро и торможение — автоматические.</p></section>
       <section><h3>Характеристики (1–20, у всех одинаковая сумма — ${CFG.STAT_TOTAL})</h3>
         <ul>

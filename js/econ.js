@@ -14,7 +14,13 @@
     return ros;
   }
   const PART = { accel: 'двигатель', top: 'трансмиссия', handling: 'подвеска' };
-  const repairCost = ros => Math.round(G.CFG.repairCost * (1 - 0.25 * ((ros.crew && ros.crew.mech) || 0)));
+  // цена ремонта: механик −25% за уровень; при repairByRank лидеру дороже (×1,3), аутсайдеру дешевле (×0,7)
+  // при repairByStat цена пропорциональна значению сломанной характеристики (×значение/12)
+  const repairCost = (ros, stat) => {
+    const rankMul = G.CFG.repairByRank && ros.champRank ? 1.3 - 0.6 * (ros.champRank - 1) / 15 : 1;
+    const statMul = G.CFG.repairByStat && stat ? ros.stats[stat] / 12 : 1;
+    return Math.max(15, Math.round(G.CFG.repairCost * rankMul * statMul * (1 - 0.25 * ((ros.crew && ros.crew.mech) || 0))));
+  };
   const weaponOf = ros => G.WEAPONS.find(w => w.id === ros.weapon);
   const sellValue = ros => Math.round(weaponOf(ros).price * E.sellBack);
 
@@ -34,7 +40,7 @@
       const l = ros.crew[k];
       if (l < 3) out.push({ type: 'crew', key: k, lvl: l, price: E.crewCost[k][l] });
     });
-    ros.broken.forEach((b, i) => out.push({ type: 'repair', key: i, stat: b.stat, amount: b.amount, price: repairCost(ros) }));
+    ros.broken.forEach((b, i) => out.push({ type: 'repair', key: i, stat: b.stat, amount: b.amount, price: repairCost(ros, b.stat) }));
     const sell = sellValue(ros);
     G.WEAPONS.forEach(w => {
       if (w.id !== ros.weapon) out.push({ type: 'weapon', key: w.id, full: w.price, sell, price: Math.max(0, w.price - sell) });
@@ -77,7 +83,7 @@
       for (const o of can) {
         // ценность = измеренная сила апгрейда (в местах), у пушки — по редкости
         let v = o.type === 'weapon' ? 0.3 * (RANK[G.WEAPONS.find(w => w.id === o.key).rarity] - curRank())
-          : o.type === 'repair' ? E.value.stat[o.stat] * o.amount * 1.2 : E.value[o.type][o.key];
+          : o.type === 'repair' ? E.value.stat[o.stat] * (o.amount * 1.5 + G.CFG.sponsorLoss * 4) : E.value[o.type][o.key]; // ремонт спасает и от постоянной потери
         if (o.type === 'stat') v *= 1.25 - ros.stats[o.key] / 25;
         if (o.type === 'repair') v *= 1.25 - ros.stats[o.stat] / 25; // слабые характеристики тянет подтянуть
         if (o.type === 'wmod' || (o.type === 'crew' && o.key === 'gun')) v += 0.05;   // оружейные апы ещё и приносят славу за попадания
@@ -142,21 +148,24 @@
     ros.morale = Math.max(0, Math.min(100, Math.round(m)));
     return { before, after: ros.morale, delta: ros.morale - before, parts, rankShift };
   }
-  // После этапа: старение поломок, самопочинка механиком, новые поломки, упадок духа
+  // После этапа: самопочинка механиком, замена спонсором (постоянная потеря), новые поломки
   function afterRaceDamage(ros, newBreaks, rand) {
     const C = G.CFG, ev = [];
     ensure(ros);
     ros.broken = ros.broken.filter(b => {
       b.left--;
-      if (b.left <= 0) { ev.push({ type: 'healed', stat: b.stat }); return false; }
+      if (b.left <= 0) {
+        // спонсор оплатил дешёвую запчасть: поломка ушла, но базовая характеристика упала навсегда
+        const loss = Math.min(C.sponsorLoss, ros.stats[b.stat] - 1);
+        ros.stats[b.stat] -= loss;
+        ros.lost = ros.lost || {}; ros.lost[b.stat] = (ros.lost[b.stat] || 0) + loss;
+        ev.push({ type: 'sponsor', stat: b.stat, loss });
+        return false;
+      }
       if (ros.crew.mech && rand() < C.mechFixChance * ros.crew.mech) { ev.push({ type: 'mechfix', stat: b.stat }); return false; }
       return true;
     });
     (newBreaks || []).forEach(stat => { ros.broken.push({ stat, amount: C.breakAmount, left: C.breakRaces }); ev.push({ type: 'broke', stat }); });
-    if (C.despairOn) {
-      if (!ros.despair && ros.morale <= C.despairAt) { ros.despair = ['accel', 'top', 'handling'][Math.floor(rand() * 3)]; ev.push({ type: 'despair', stat: ros.despair }); }
-      else if (ros.despair && ros.morale >= C.despairOff) { ev.push({ type: 'recovered', stat: ros.despair }); ros.despair = null; }
-    }
     return ev;
   }
   const statSum = ros => ros.stats.accel + ros.stats.top + ros.stats.handling;

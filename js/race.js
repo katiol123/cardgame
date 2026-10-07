@@ -173,7 +173,7 @@
           human: id === opts.human,
           weapon: ros ? G.makeWeapon(ros.weapon, ros.wmods) : opts.weapon ? opts.weapon(id) : pool[id],
           crew: Object.assign({ mech: 0, gun: 0, armor: 0, nitro: 0 }, ros && ros.crew), fame: 0, showFame: 0, kills: 0, breaks: [],
-          perks: (ros && ros.perks) || [], tier: ros && ros.tier,
+          perks: (ros && ros.perks) || [], tier: ros && ros.tier, baseStats: ros ? Object.assign({}, ros.stats) : null, broken: (ros && ros.broken) || [],
           morale: ros && typeof ros.morale === 'number' ? ros.morale : 50, nerves: 0, face: ros && ros.face,
           board: new G.Board(this.rand),
           hp: CFG.MAX_HP, shield: 0, speed: 0, frac: 0,
@@ -225,7 +225,11 @@
       t.skip = CFG.crashSkip - (t.crew && t.crew.mech >= 3 ? 1 : 0); t.speed = 0; t.nitro = 0; t.shield = 0; t.burn = null; t.frac = 0;
       t.charge = Math.floor(t.charge / 2); t.crashes++;
       // поломка узла: проявится со следующего этапа
-      if (CFG.breakOn && this.rand() < CFG.breakChance) t.breaks.push(['accel', 'top', 'handling'][Math.floor(this.rand() * 3)]);
+      if (CFG.breakOn && this.rand() < CFG.breakChance) {
+        const st = ['accel', 'top', 'handling'][Math.floor(this.rand() * 3)];
+        t.breaks.push(st);
+        this.fx.push({ id: t.id, text: `🔧 ПОЛОМКА: ${{ accel: 'двигатель', top: 'трансмиссия', handling: 'подвеска' }[st]}`, color: '#ff7a00' });
+      }
     }
 
     applyGains(r, tally) {
@@ -542,7 +546,6 @@
   G.effectiveStats = ros => {
     const s = Object.assign({}, ros.stats);
     (ros.broken || []).forEach(b => { s[b.stat] -= b.amount; });
-    if (ros.despair) s[ros.despair] -= 1;
     Object.keys(s).forEach(k => { s[k] = Math.max(1, s[k]); });
     return s;
   };
