@@ -855,3 +855,10 @@ svg.face .fx-tear { animation: fxTear 2s ease-in infinite; }
 .token.rage .t-base { stroke: #ff2d2d; stroke-width: 4; filter: drop-shadow(0 0 7px #ff2d2d); animation: rage-pulse .6s ease-in-out infinite alternate; }
 @keyframes rage-pulse { to { filter: drop-shadow(0 0 13px #ff5a2d); } }
 .undead.roots .ud-body { animation: none; }
+
+/* классы поля */
+.meter.cls.storm .fill { background: linear-gradient(90deg, #4f9dff, #cfeaff); }
+.meter.cls.qi .fill { background: linear-gradient(90deg, #ffb347, #ffe9a0); }
+#board.pact .gem.t4 .gem-in { --c: #d4142e; --d: #4a0510; }
+#board.pact .gem.t4 { box-shadow: 0 0 10px rgba(200, 10, 40, .75); }
+#board.pact .gem.t4::after { content: '🩸'; position: absolute; right: 2px; bottom: 0; font-size: 12px; line-height: 1; pointer-events: none; }

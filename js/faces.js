@@ -408,6 +408,22 @@
       const horn = `<path d="M34 28 Q28 16 30 4 M31 15 Q24 12 20 6 M30 9 Q34 5 36 2" fill="none" stroke="#8a5a2b" stroke-width="3.6" stroke-linecap="round"/><g fill="#5ee08a" stroke="#2c6b3d" stroke-width=".6"><ellipse cx="22" cy="10" rx="3.2" ry="1.8" transform="rotate(-40 22 10)"/><ellipse cx="33" cy="20" rx="3" ry="1.6" transform="rotate(30 33 20)"/><ellipse cx="36" cy="5" rx="2.6" ry="1.5"/></g>`;
       return { top: `<g transform="translate(-2 9)">${horn}</g><g ${MIRROR}><g transform="translate(-2 9)">${horn}</g></g><path d="M28 34 Q50 26 72 34" stroke="#3fae5f" stroke-width="2.2" fill="none"/><g fill="#7ee08a">${[32, 41, 50, 59, 68].map((x, i) => `<ellipse cx="${x}" cy="${32 - Math.sin(i / 4 * Math.PI) * 4}" rx="2.8" ry="1.6" transform="rotate(${i * 25 - 50} ${x} ${32 - Math.sin(i / 4 * Math.PI) * 4})"/>`).join('')}</g>` };
     },
+    // чернокнижник: кровавая руна во лбу и алые зрачки
+    warlock: g => ({ over: [50 - g.eyeGap, 50 + g.eyeGap].map(x => `<circle cx="${x}" cy="${g.eyeY}" r="2.6" fill="#ff1f3d" class="fx-glow"/>`).join('') +
+      `<g transform="translate(50 ${g.eyeY - 15})" fill="none" stroke="#c0102a" stroke-width="1.3" class="fx-glow"><circle r="5"/><path d="${star(0, 0, 4.6)}"/></g>` +
+      `<path d="M${50 - g.eyeGap} ${g.eyeY + 4} q-1 6 0 9 M${50 + g.eyeGap} ${g.eyeY + 4} q1 5 0 8" stroke="#8a0f1f" stroke-width="1.2" fill="none" opacity=".7"/>` }),
+    // шаман: повязка с перьями и молнии-раскраска на щеках
+    shaman: g => ({
+      top: `<path d="M23 36 Q50 26 77 36 L77 41 Q50 31 23 41Z" fill="#8a4b22" stroke="#4a2410" stroke-width=".8"/><g stroke="#4a2410" stroke-width=".6">${[[30, 12, -18], [38, 6, -6], [62, 6, 6], [70, 12, 18]].map(([x, y, a], i) => `<path d="M${x} 34 Q${x - 4} ${y + 12} ${x + a / 4} ${y} Q${x + 4} ${y + 12} ${x} 34Z" fill="${['#f2ead8', '#4f9dff', '#f2ead8', '#4f9dff'][i]}"/>`).join('')}</g>` +
+        `<g fill="#ffd23f">${[30, 38, 46, 54, 62, 70].map(x => `<circle cx="${x}" cy="${36 - Math.sin((x - 23) / 54 * Math.PI) * 4}" r="1"/>`).join('')}</g>`,
+      over: [[50 - g.eyeGap - 4, 1], [50 + g.eyeGap + 4, -1]].map(([x, m]) => `<path d="M${x + 3 * m} ${g.eyeY + 8} L${x - 2 * m} ${g.eyeY + 12} L${x + 2 * m} ${g.eyeY + 13} L${x - 3 * m} ${g.eyeY + 18}" stroke="#cfeaff" stroke-width="1.6" fill="none" stroke-linejoin="round"/>`).join('')
+    }),
+    // монах: оранжевое одеяние, чётки и знак инь-ян
+    monk: () => ({
+      back: `<path d="M14 100 Q16 84 34 81 L50 96 L66 81 Q84 84 86 100Z" fill="#ff9a1f" stroke="#b35f00" stroke-width="1"/><path d="M34 81 L50 96 L44 100" fill="#c96a00"/>`,
+      top: `<g fill="#6b3f22" stroke="#3b2414" stroke-width=".4">${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => { const a = Math.PI * (0.12 + i * 0.076); return `<circle cx="${(50 + Math.cos(a) * 19).toFixed(1)}" cy="${(80 + Math.sin(a) * 9).toFixed(1)}" r="1.9"/>`; }).join('')}</g>` +
+        `<g transform="translate(50 90)"><circle r="3.6" fill="#fff" stroke="#222" stroke-width=".6"/><path d="M0 -3.6 A1.8 1.8 0 0 1 0 0 A1.8 1.8 0 0 0 0 3.6 A3.6 3.6 0 0 1 0 -3.6Z" fill="#222"/></g>`
+    }),
     // закрученные бараньи рога
     ram: () => ({ top: `<path d="M30 30 Q11 24 10 43 Q10 59 25 57 Q17 52 19 45 Q21 37 31 40Z" fill="#c9b18a" stroke="#7a6545" stroke-width="1.2"/><path d="M14 44 Q16 50 22 52 M16 36 Q20 33 26 34" stroke="#7a6545" stroke-width=".8" fill="none"/>` +
       `<g ${MIRROR}><path d="M30 30 Q11 24 10 43 Q10 59 25 57 Q17 52 19 45 Q21 37 31 40Z" fill="#c9b18a" stroke="#7a6545" stroke-width="1.2"/><path d="M14 44 Q16 50 22 52 M16 36 Q20 33 26 34" stroke="#7a6545" stroke-width=".8" fill="none"/></g>` })

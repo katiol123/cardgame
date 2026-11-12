@@ -215,6 +215,30 @@
       });
     }
 
+    // чернокнижник: вытянуть прочность из ближайшего соперника
+    drain(r, amount) {
+      const alive = this.racers.filter(o => o !== r && !o.finished && !o.skip);
+      if (!alive.length) return false;
+      const t = alive.sort((a, b) => Math.abs(a.pos - r.pos) - Math.abs(b.pos - r.pos))[0];
+      const d = this.applyDamage(t, amount, true);
+      r.hp = Math.min(CFG.MAX_HP, r.hp + d.real); t.lastAttacker = r.id; r.dmgDealt += d.real;
+      if (d.crashed) { r.kills++; r.fame += G.ECON.fameCrash; }
+      this.lastDrain = { target: t, dmg: d.real, crashed: d.crashed };
+      return true;
+    }
+
+    // шаман: молния по всем соперникам рядом
+    storm(r) {
+      const hits = this.racers.filter(o => o !== r && !o.finished && !o.skip && Math.abs(o.pos - r.pos) <= CFG.stormRange).map(t => {
+        const d = this.applyDamage(t, CFG.stormDmg, false);
+        t.speed = Math.max(0, t.speed - 1); t.lastAttacker = r.id; r.dmgDealt += d.real; r.fame += G.ECON.fameHit;
+        if (d.crashed) { r.kills++; r.fame += G.ECON.fameCrash; }
+        return { target: t, dmg: d.real, absorbed: d.absorbed, crashed: d.crashed };
+      });
+      this.fx.push({ id: r.id, text: hits.length ? `⚡ ГРОЗА: ${hits.length}` : '⚡ гроза уходит в пустоту', color: '#9fd8ff' });
+      return { hits };
+    }
+
     // архимаг: метеор на ближайшего соперника впереди (или позади, если впереди никого)
     meteor(r, combo) {
       const alive = this.racers.filter(o => o !== r && !o.finished && !o.skip);
@@ -330,7 +354,8 @@
       if (over && has(r, 'tactic')) r.shield = Math.min(CFG.shieldMax, r.shield + over * 3); // излишки нитро — в броню
       r.charge = Math.min(w.charge, r.charge + tally[2] * CFG.ammoPer * (1 + 0.1 * r.crew.gun));
       r.shield = Math.min(CFG.shieldMax, r.shield + tally[3] * CFG.shieldPer * (has(r, 'heavy') ? 1.5 : 1));
-      r.hp = Math.min(CFG.MAX_HP, r.hp + tally[4] * CFG.repairPer * (1 + 0.15 * r.crew.mech));
+      if (has(r, 'warlock') && tally[4] > 0 && this.drain(r, tally[4] * CFG.drainPer)) { /* кровавый пакт вместо ремонта */ }
+      else r.hp = Math.min(CFG.MAX_HP, r.hp + tally[4] * CFG.repairPer * (1 + 0.15 * r.crew.mech));
       r.grip = Math.min(CFG.gripMax, r.grip + tally[5]);
       return {
         speed: r.speed - before.speed, nitro: r.nitro - before.nitro, charge: r.charge - before.charge,
@@ -683,7 +708,21 @@
         res.match.tally = res.match.tally.map(x => x * 2);
         this.fx.push({ id: r.id, text: `🎲 ВЕЗЕНИЕ: улов ×2`, color: '#ffd23f' });
       }
-      res.gains = this.applyGains(r, res.match.tally);
+      let tally = res.match.tally;
+      if (r.enlightened && !r.finished) { tally = tally.map(x => x * 2); r.enlightened = false; res.enlight = true; } // монах: просветление
+      this.lastDrain = null;
+      res.gains = this.applyGains(r, tally);
+      if (this.lastDrain) res.drain = this.lastDrain;
+      if (!r.finished) {
+        if (has(r, 'monk')) {
+          r.qi = (r.qi || 0) + 1 + 2 * (res.match.combo - 1) + 2 * res.match.specials;
+          if (r.qi >= CFG.qiMax) { r.qi = 0; r.enlightened = true; this.fx.push({ id: r.id, text: '☯ ПРОСВЕТЛЕНИЕ', color: '#ffe9a0' }); }
+        }
+        if (has(r, 'shaman')) {
+          r.storm = (r.storm || 0) + res.match.tally[1];
+          if (r.storm >= CFG.stormMax) { r.storm -= CFG.stormMax; res.storm = this.storm(r); }
+        }
+      }
       if (has(r, 'archmage') && res.match.combo >= 3) res.meteor = this.meteor(r, res.match.combo);
       if (r.crew.mech) r.hp = Math.min(CFG.MAX_HP, r.hp + 1.5 * r.crew.mech);
       if (has(r, 'gambler') && this.rand() < 0.15) this.jackpot(r);

@@ -685,6 +685,8 @@
             <div class="meter ni" id="m-nitro"><label>Нитро <b id="c-ni"></b></label><div class="pips" id="c-nipips">${'<i></i>'.repeat(CFG.nitroMax)}</div></div>
             <div class="meter mo" id="m-morale" title="Мораль: спокойствие в давке и твёрдость руки при стрельбе (точность ±10%). Меняется после каждой гонки и плавно стремится к 50"><label>Мораль <b id="c-mo"></b></label><div class="bar thin"><i class="fill" id="c-mobar"></i></div></div>
             <div class="meter gr" id="m-grip"><label>Сцепление <b id="c-gr"></b></label><div class="pips" id="c-grpips">${'<i></i>'.repeat(CFG.gripMax)}</div></div>
+            ${r.perks.includes('shaman') ? `<div class="meter cls storm" title="Гроза: заряжается блоками «Нитро», на ${CFG.stormMax} бьёт молнией всех рядом"><label>⚡ Гроза <b id="c-cls"></b></label><div class="bar thin"><i class="fill" id="c-clsbar"></i></div></div>` : ''}
+            ${r.perks.includes('monk') ? `<div class="meter cls qi" title="Ци: ход +1, волна каскада +2, спецблок +2; на ${CFG.qiMax} — просветление, улов следующего хода ×2"><label>☯ Ци <b id="c-cls"></b></label><div class="bar thin"><i class="fill" id="c-clsbar"></i></div></div>` : ''}
           </div>
         </div>
         <div class="rc-weapon" id="m-charge" style="--wc:${w.color}">
@@ -746,6 +748,11 @@
       $('#m-nitro').classList.toggle('full', r.nitro >= CFG.nitroMax);
       $('#c-gr').textContent = `${Math.floor(r.grip)} (≤${fmt(F.corner(r, 1))})`;
       document.querySelectorAll('#c-grpips i').forEach((p, i) => p.classList.toggle('on', i < Math.floor(r.grip)));
+      if ($('#c-cls')) {
+        const sh = r.perks.includes('shaman'), v = sh ? r.storm || 0 : r.qi || 0, mx = sh ? CFG.stormMax : CFG.qiMax;
+        $('#c-cls').textContent = r.enlightened ? 'ПРОСВЕТЛЕНИЕ' : `${Math.floor(v)}/${mx}`;
+        $('#c-clsbar').style.width = (r.enlightened ? 100 : Math.min(100, v / mx * 100)) + '%';
+      }
       const ch = r.charge / r.weapon.charge;
       $('#c-charge').style.width = ch * 100 + '%';
       $('#c-chargetxt').textContent = ch >= 1 ? 'ЗАРЯЖЕНО — ищет цель' : `заряд ${Math.floor(r.charge)}/${r.weapon.charge}`;
@@ -808,6 +815,7 @@
 
   function boardHead() {
     const race = state.race, r = race.racers[state.selected];
+    $('#board').classList.toggle('pact', r.perks.includes('warlock'));
     const acting = state.acting === r.id;
     let wait = 0;
     if (!acting && !r.finished) {
@@ -930,6 +938,35 @@
       await wait(140);
     }
     if (res.match.combo >= 3 || res.match.specials >= 2) log(`${nm(r)}: каскад ×${res.match.combo}, сожжено блоков: ${res.match.totalCleared}`, 'cmb');
+    // --- классы поля: пакт, гроза, просветление ---
+    if (res.enlight) {
+      const p = TV.xy(r.id);
+      trackFx.ring(p.x, p.y, '#ffe9a0', 60, { life: 0.8, width: 5 }); trackFx.text(p.x, p.y - 34, '☯ УЛОВ ×2', '#ffe9a0', { size: 16 });
+      log(`☯ ${nm(r)} в просветлении: улов с поля удвоен`, 'cmb'); snd('banish');
+    }
+    if (res.drain) {
+      const dr = res.drain, a = TV.xy(dr.target.id), b2 = TV.xy(r.id);
+      snd('undead');
+      await FXS.fly(a, b2, 0.45 / Math.min(state.speed, 4), 30, p => trackFx.add({ x: p.x, y: p.y, vx: 0, vy: 0, size: 6, color: Math.random() < 0.5 ? '#b3121f' : '#ff3d5a', max: 0.4, shape: 'dot' }));
+      if (!alive()) return;
+      trackFx.text(a.x, a.y - 26, `🩸 −${dr.dmg}`, '#ff3d5a', { size: 16 }); trackFx.text(b2.x, b2.y - 26, `+${dr.dmg}`, '#2fdc74', { size: 14 });
+      TV.tokens[dr.target.id].shake = 8;
+      if (dr.crashed) FXS.crash(dr.target.id);
+      log(`🩸 ${nm(r)} пьёт прочность ${nm(dr.target)}: −${dr.dmg}${dr.crashed ? ' · <b class="bad">АВАРИЯ!</b>' : ''}`, dr.crashed ? 'bad' : 'atk');
+    }
+    if (res.storm) {
+      const p = TV.xy(r.id);
+      snd('shot', { fx: 'pulse' }); trackFx.flash(p.x, p.y, '#9fd8ff', 70, 0.4);
+      res.storm.hits.forEach(h => {
+        const b3 = TV.xy(h.target.id);
+        trackFx.beam(b3.x, b3.y - 260, b3.x, b3.y, '#cfeaff', { width: 5, life: 0.5, jitter: 14 }); trackFx.beam(b3.x, b3.y - 260, b3.x, b3.y, '#fff', { width: 2, life: 0.35, jitter: 10 });
+        trackFx.flash(b3.x, b3.y, '#9fd8ff', 40, 0.35); trackFx.text(b3.x, b3.y - 26, `⚡ −${h.dmg}`, '#9fd8ff', { size: 16 });
+        TV.tokens[h.target.id].shake = 10; if (h.crashed) FXS.crash(h.target.id);
+      });
+      if (res.storm.hits.length) snd('hit', { big: true });
+      log(`⚡ ${nm(r)} вызывает грозу: ${res.storm.hits.length ? res.storm.hits.map(h => `${nm(h.target)} −${h.dmg}${h.crashed ? ' <b class="bad">АВАРИЯ!</b>' : ''}`).join(', ') : 'рядом никого'}`, 'atk');
+      await wait(250);
+    }
     // --- метеор архимага ---
     if (res.meteor) {
       const m = res.meteor, b = TV.xy(m.target.id), a0 = { x: b.x + 140, y: b.y - 320 };
