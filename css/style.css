@@ -863,3 +863,19 @@ svg.face .fx-tear { animation: fxTear 2s ease-in infinite; }
 #board.pact .gem.t4 .gem-in { --c: #d4142e; --d: #4a0510; }
 #board.pact .gem.t4 { box-shadow: 0 0 10px rgba(200, 10, 40, .75); }
 #board.pact .gem.t4::after { content: '🩸'; position: absolute; right: 2px; bottom: 0; font-size: 12px; line-height: 1; pointer-events: none; }
+
+/* ===== режим повтора: только трасса, без поля «три в ряд» ===== */
+body.replay .layout { grid-template-columns: 250px minmax(0, 1fr); }
+body.replay .board-panel, body.replay .racer-card, body.replay .topbar .controls { display: none; }
+body.replay .track-wrap { box-shadow: 0 0 0 1px rgba(255, 210, 63, .35), 0 0 40px rgba(255, 210, 63, .08); }
+.replay-hud { display: none; position: absolute; left: 50%; top: 10px; transform: translateX(-50%); z-index: 6;
+  align-items: center; gap: 14px; padding: 8px 12px 8px 16px; border-radius: 14px;
+  background: rgba(10, 13, 22, .82); border: 1px solid rgba(255, 210, 63, .4); backdrop-filter: blur(6px); box-shadow: 0 8px 30px rgba(0, 0, 0, .5); white-space: nowrap; }
+.replay-hud.show { display: flex; }
+.replay-hud .rp-title { font: 15px var(--head); color: #ffd23f; letter-spacing: 1px; display: flex; align-items: center; gap: 10px; }
+.replay-hud .rp-title span { font: 600 13px var(--body, sans-serif); color: #c9d3e6; letter-spacing: 0; display: flex; align-items: center; gap: 6px; }
+.replay-hud .rp-round { font-size: 13px; color: #8a95ab; padding: 0 6px; border-left: 1px solid #2a3142; border-right: 1px solid #2a3142; }
+.replay-hud .rp-round b { color: #fff; font-size: 15px; }
+.replay-hud .rp-btns { display: flex; gap: 6px; }
+.replay-hud .rp-btns .btn { padding: 5px 10px; font-size: 13px; }
+@media (max-width: 900px) { body.replay .layout { grid-template-columns: 1fr; } .replay-hud { flex-wrap: wrap; white-space: normal; } }

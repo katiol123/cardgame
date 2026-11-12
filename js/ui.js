@@ -398,13 +398,14 @@
         fx.burst(b.x, b.y, '#fff', 8, { speed: 320, life: 0.3, g: 0 });
         fx.smoke(b.x, b.y, 6, { size: 10 });
         if (hit.dmg > 0) fx.text(b.x, b.y - 26, '−' + hit.dmg, '#ff3d5a', { size: 22 });
-        if (hit.absorbed > 0) fx.text(b.x + 26, b.y - 6, '🛡' + hit.absorbed, '#7fa6ff', { size: 15, life: 1.1 });
-        if (hit.effects.length) fx.text(b.x, b.y + 26, hit.effects[0], '#ffe08a', { size: 12, life: 1.4, rise: 25 });
+        const quiet = document.body.classList.contains('replay'); // в повторе — без мелких подписей
+        if (hit.absorbed > 0 && !quiet) fx.text(b.x + 26, b.y - 6, '🛡' + hit.absorbed, '#7fa6ff', { size: 15, life: 1.1 });
+        if (hit.effects.length && !quiet) fx.text(b.x, b.y + 26, hit.effects[0], '#ffe08a', { size: 12, life: 1.4, rise: 25 });
         TV.tokens[hit.target.id].shake = 10;
         if (hit.target.burn) FXS.fire(hit.target.id, 0.8);
       } else {
         snd('miss');
-        fx.text(b.x, b.y - 24, 'ПРОМАХ', '#aab4c8', { size: 14 });
+        if (!document.body.classList.contains('replay')) fx.text(b.x, b.y - 24, 'ПРОМАХ', '#aab4c8', { size: 14 });
         fx.burst(b.x + 20, b.y + 10, '#aab4c8', 6, { speed: 120, life: 0.3, g: 0 });
       }
       if (hit.crashed) FXS.crash(hit.target.id);
@@ -1335,7 +1336,10 @@
     const d = Champ.d, def = Champ.def();
     state.track = window.buildTrack(def);
     state.rain = Champ.weather();
-    state.race = new window.Race({ track: state.track, roster: d.roster, human: d.human, grid: Champ.grid(), mods: { rain: state.rain } });
+    const grid = Champ.grid();
+    state.race = new window.Race({ track: state.track, roster: d.roster, human: d.human, grid, mods: { rain: state.rain } });
+    // всё, что нужно, чтобы потом пересчитать эту же гонку для повтора (состав копируется до наград и покупок)
+    state.replayInput = { roster: JSON.parse(JSON.stringify(d.roster)), human: d.human, grid: grid.slice(), rain: state.rain, seed: state.race.seed, def: def, stage: d.stage };
     TV.build(state.track, state.race.racers);
     TV.undead(state.race);
     Stand.build(state.race);
@@ -1555,9 +1559,156 @@
       else if (me >= 0) Garage.show(() => TrackIntro.show());
       else Paddock.show(() => TrackIntro.show());
     };
+    $('#btnReplay').style.display = state.replayInput ? '' : 'none';
+    $('#btnReplay').onclick = () => Replay.start();
     $('#results').classList.add('show');
     FXS.confetti(st[0].id); snd('fanfare');
   }
+
+  // =====================================================================
+  //          ПОВТОР: та же гонка (сид + ходы игрока), без поля «три в ряд»
+  // =====================================================================
+  const Replay = {
+    id: 0, speed: 1, paused: false,
+    sleep(ms, id) {
+      return new Promise(res => {
+        const t0 = performance.now();
+        const tick = () => {
+          if (id !== Replay.id) return res();
+          if (Replay.paused) { setTimeout(tick, 80); return; }
+          if (performance.now() - t0 >= ms / Replay.speed) return res();
+          setTimeout(tick, 16);
+        };
+        tick();
+      });
+    },
+    start() {
+      const inp = state.replayInput;
+      if (!inp) return;
+      $('#results').classList.remove('show');
+      Replay.orig = { race: state.race, speed: state.speed, selected: state.selected };
+      Replay.id++; Replay.paused = false;
+      const race = new window.Race({ track: state.track, roster: JSON.parse(JSON.stringify(inp.roster)), human: inp.human, grid: inp.grid, mods: { rain: inp.rain }, seed: inp.seed });
+      Replay.race = race; Replay.log = Replay.orig.race.humanLog.slice();
+      state.race = race; state.acting = -1; state.paused = false;
+      state.selected = inp.human >= 0 ? inp.human : race.order[0];
+      state.speed = Math.min(4, Replay.speed * 2);
+      document.body.classList.add('replay'); $('#turnName').textContent = '—';
+      TV.build(state.track, race.racers); TV.undead(race); Stand.build(race); TV.updateClasses();
+      trackFx.resize && trackFx.resize();
+      Replay.hud();
+      Replay.loop(Replay.id);
+    },
+    hud(done) {
+      const inp = state.replayInput, race = Replay.race;
+      $('#replayHud').innerHTML = `<div class="rp-title">🎬 ПОВТОР <span>${flagSvg(inp.def.id, 22)} Этап ${inp.stage + 1}: ${inp.def.name}${inp.rain ? (inp.def.wet === 'fog' ? ' · туман' : ' · дождь') : ''}</span></div>
+        <div class="rp-round">${done ? '🏁 Финиш' : `Раунд <b>${race.round}</b>`}</div>
+        <div class="rp-btns">${done ? `<button class="btn" id="rpAgain">↺ Ещё раз</button>` : `<button class="btn icon" id="rpPause">${Replay.paused ? '▶' : '❚❚'}</button>${[1, 2, 4].map(v => `<button class="btn seg ${Replay.speed === v ? 'active' : ''}" data-rps="${v}">${v}×</button>`).join('')}`}<button class="btn primary" id="rpExit">К итогам →</button></div>`;
+      $('#replayHud').classList.add('show');
+      const b = id => document.getElementById(id);
+      if (b('rpPause')) b('rpPause').onclick = () => { Replay.paused = !Replay.paused; Replay.hud(); };
+      document.querySelectorAll('[data-rps]').forEach(x => { x.onclick = () => { Replay.speed = +x.dataset.rps; state.speed = Math.min(4, Replay.speed * 2); Replay.hud(); }; });
+      if (b('rpAgain')) b('rpAgain').onclick = () => Replay.start();
+      b('rpExit').onclick = () => Replay.exit();
+      $('#stageName').innerHTML = `${inp.stage + 1}/${window.TRACKS.length} · ${inp.def.name}`;
+    },
+    async loop(id) {
+      const race = Replay.race;
+      await Replay.sleep(500, id);
+      while (!race.over && id === Replay.id) {
+        // считаем целый раунд и показываем его ходы внахлёст — фишки едут одновременно
+        const r0 = race.round, batch = [];
+        while (!race.over && race.round === r0) {
+          let mv;
+          if (race.needsInput()) { const e = Replay.log.shift(); mv = e || undefined; }
+          const res = race.playTurn(mv);
+          if (!res) break;
+          batch.push(res);
+        }
+        race.fx.length = 0;
+        await Replay.round(batch, id);
+        if (id !== Replay.id) return;
+        Stand.update(); TV.updateClasses(); TV.undeadRefresh(race); TV.undeadSync(race);
+        $('#roundNo').textContent = race.round;
+        Replay.hud();
+      }
+      if (id !== Replay.id) return;
+      await Replay.sleep(900, id);
+      Replay.hud(true);
+      const st = race.racers.slice().sort((a, b) => a.place - b.place);
+      banner(`${st[0].name} побеждает!`, '#ffd23f'); FXS.confetti(st[0].id); snd('fanfare');
+    },
+    async round(batch, id) {
+      const D = 1500, live = batch.filter(r => !r.show && !(r.skipped && !r.repaired && !r.burn));
+      const step = live.length ? D * 0.5 / live.length : 0;
+      await Promise.all(live.map((res, i) => Replay.sleep(i * step, id).then(() => id === Replay.id && Replay.turn(res, D * 0.6, id))));
+    },
+    async turn(res, dur, id) {
+      const r = res.racer, sp = Math.min(4, Replay.speed * 2);
+      Stand.flash(r.id, 'think');
+      if (res.burn) { FXS.fire(r.id, 0.6); if (res.burn.crashed) FXS.crash(r.id); }
+      if (res.repaired) { const p = TV.xy(r.id); trackFx.ring(p.x, p.y, '#2fdc74', 24, { life: 0.5 }); }
+      if (res.meteor) { const b = TV.xy(res.meteor.target.id); trackFx.flash(b.x, b.y, '#ff9a3c', 70, 0.5); trackFx.burst(b.x, b.y, '#ff7a00', 30, { speed: 300, life: 0.7, g: 200 }); trackFx.text(b.x, b.y - 30, `☄ −${res.meteor.dmg}`, '#ffb000', { size: 18 }); snd('bomb'); if (res.meteor.crashed) FXS.crash(res.meteor.target.id); }
+      if (res.storm) res.storm.hits.forEach(h => { const b = TV.xy(h.target.id); trackFx.beam(b.x, b.y - 240, b.x, b.y, '#cfeaff', { width: 5, life: 0.45, jitter: 14 }); trackFx.text(b.x, b.y - 26, `⚡ −${h.dmg}`, '#9fd8ff', { size: 14 }); if (h.crashed) FXS.crash(h.target.id); });
+      if (res.drain) { const a = TV.xy(res.drain.target.id), b = TV.xy(r.id); trackFx.beam(a.x, a.y, b.x, b.y, '#d4142e', { width: 3, life: 0.4 }); if (res.drain.crashed) FXS.crash(res.drain.target.id); }
+      // выстрелы — на ходу, параллельно с движением
+      if (res.attack) {
+        const att = res.attack, a = TV.xy(r.id);
+        att.hits.forEach((hit, k) => {
+          const b = TV.xy(hit.target.id);
+          setTimeout(() => {
+            if (id !== Replay.id) return;
+            FXS.shot(att, hit.hit, a, b).then(() => {
+              if (id !== Replay.id) return;
+              FXS.impact(TV.xy(hit.target.id), att.weapon, hit);
+              if (hit.knockTo !== undefined) TV.hop(hit.target.id, hit.knockFrom, hit.knockTo, 380 / sp);
+              if (hit.reflected) { const ar = TV.xy(r.id); trackFx.text(ar.x, ar.y - 30, '🪞 −' + hit.reflected.dmg, '#dfe8ff', { size: 16 }); if (hit.reflected.crashed) FXS.crash(r.id); }
+            });
+          }, k * 140 / sp);
+        });
+      }
+      const mv = res.move;
+      if (!mv) return;
+      const p0 = TV.xy(r.id), d = Math.max(260, dur * (0.55 + Math.min(1, Math.abs(mv.to - mv.from) / 8) * 0.45)) / Replay.speed;
+      if (mv.boost) { trackFx.flash(p0.x, p0.y, '#22e3ff', 36, 0.35); FXS.trail(r.id, '#22e3ff', d / 1000); snd('nitro'); }
+      else if (Math.abs(mv.to - mv.from) >= 4) FXS.trail(r.id, r.color, d / 1000 * 0.8);
+      await TV.hop(r.id, mv.from, mv.to, d);
+      if (id !== Replay.id) return;
+      const p1 = TV.xy(r.id);
+      if (mv.skid) { trackFx.smoke(p1.x, p1.y, 10, { size: 9 }); snd('skid'); if (mv.skid.crashed) FXS.crash(r.id); }
+      if (mv.ram) { const pt = TV.xy(mv.ram.target.id); trackFx.flash(pt.x, pt.y, '#ff9a3c', 36, 0.3); snd('ram'); if (mv.ram.crashed) FXS.crash(mv.ram.target.id); if (mv.ram.selfCrashed) FXS.crash(r.id); }
+      if (mv.undead) {
+        const u = mv.undead;
+        if (u.roots) trackFx.text(p1.x, p1.y - 28, '🌿 ОПЛЕТЁН', '#7ee08a', { size: 14 });
+        else if (u.banished) { trackFx.ring(p1.x, p1.y, '#ffe9a0', 40, { life: 0.6 }); trackFx.text(p1.x, p1.y - 28, '⚜ ИЗГНАНА', '#ffe9a0', { size: 14 }); snd('banish'); }
+        else { trackFx.text(p1.x, p1.y - 28, u.hit ? `💀 −${u.dmg}` : '💀 мимо', '#7dff9a', { size: 14 }); snd('undead', { hit: u.hit }); if (u.crashed) FXS.crash(r.id); }
+      }
+      if (mv.cellFx) {
+        const k = mv.cellFx.kind;
+        trackFx.ring(p1.x, p1.y, Art.CELL_COLOR[k], 26, { life: 0.45 });
+        if (k === 'jump') { snd('jump'); await TV.hop(r.id, mv.cellFx.from, mv.cellFx.to, 480 / Replay.speed, true); }
+        if (mv.cellFx.crashed) FXS.crash(r.id);
+      }
+      if (mv.finished) {
+        const pf = TV.xy(r.id);
+        FXS.confetti(r.id); snd('finish', { place: r.place });
+        trackFx.text(pf.x, pf.y - 40, `🏁 ${r.place}-й`, r.place === 1 ? '#ffd23f' : '#fff', { size: 20, life: 1.6 });
+        if (r.place <= 3) banner(`${r.name} финиширует ${r.place}-м!`, r.place === 1 ? '#ffd23f' : '#fff');
+      }
+    },
+    exit() {
+      Replay.id++;
+      const o = Replay.orig;
+      if (!o) return;
+      document.body.classList.remove('replay');
+      $('#replayHud').classList.remove('show');
+      state.race = o.race; state.speed = o.speed; state.selected = o.selected;
+      TV.build(state.track, o.race.racers); TV.undead(o.race); Stand.build(o.race);
+      syncAll();
+      trackFx.resize && trackFx.resize();
+      $('#results').classList.add('show');
+    }
+  };
 
   // =====================================================================
   //                       ГАРАЖ (покупки за «Славу»)

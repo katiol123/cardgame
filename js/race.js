@@ -157,6 +157,7 @@
       this.over = false;
       this.finishOrder = [];
       this.fx = []; // события перков для интерфейса: {id, text, color}
+      this.humanLog = []; // ходы игрока по порядку (null — ходил автопилот): по ним повтор воспроизводит гонку
       this.firstFinishRound = 0;
       const weapons = G.WEAPONS.filter(w => !w.shop);
       const pool = [];
@@ -665,7 +666,9 @@
       if (r.finished) {
         // «Шоу для фанатов»: после финиша поле приносит славу
         if (r.giftSpecial) { r.giftSpecial = false; const gs = r.board.addSpecial(); if (gs) { res.gift = gs; this.fx.push({ id: r.id, text: '🧩 спецблок на поле', color: '#ffd23f' }); } }
-      const mv = move && r.board.swapValid(move[0], move[1]) ? move : AI.choose(this, r);
+      const own = move && r.board.swapValid(move[0], move[1]);
+      if (r.human) this.humanLog.push(own ? [move[0], move[1]] : null); // для повтора: ход игрока или автопилот
+      const mv = own ? move : AI.choose(this, r);
         res.match = r.board.execute(mv[0], mv[1]);
         const gain = Math.round(res.match.tally.reduce((a, b) => a + b, 0) + res.match.specials * 3);
         r.fame += gain; r.showFame += gain;
@@ -701,7 +704,9 @@
         return res;
       }
       if (r.skip > 0) { r.board.tickLocks(); this.advance(); res.skipped = true; return res; }
-      const mv = move && r.board.swapValid(move[0], move[1]) ? move : AI.choose(this, r);
+      const own = move && r.board.swapValid(move[0], move[1]);
+      if (r.human) this.humanLog.push(own ? [move[0], move[1]] : null); // для повтора: ход игрока или автопилот
+      const mv = own ? move : AI.choose(this, r);
       res.match = r.board.execute(mv[0], mv[1]);
       if (res.match.combo >= 3) r.fame += G.ECON.fameCombo * (res.match.combo - 2);
       if (has(r, 'impulsive') && res.match.combo >= 3) {
