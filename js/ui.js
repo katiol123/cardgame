@@ -654,7 +654,7 @@
   }
   const brokenOf = (ros, k) => (ros && ros.broken || []).filter(x => x.stat === k).reduce((a, x) => a + x.amount, 0);
   const PARTN = { accel: 'двигатель', top: 'трансмиссия', handling: 'подвеска' };
-  const brokeTags = ros => (ros && ros.broken || []).map(b => `<span class="perk brk" title="Сломан ${PARTN[b.stat]}: ${window.Shop.STAT_NAME[b.stat]} −${b.amount}. ${(ros.perks || []).includes('tinker') ? `Самоучка починит сам через ${b.left} эт., без потерь` : `Без ремонта через ${b.left} эт. спонсор поставит дешёвую запчасть (−${CFG.sponsorLoss} навсегда)`}">🔧 ${PARTN[b.stat]} −${b.amount}</span>`).join('');
+  const brokeTags = (ros, compact) => (ros && ros.broken || []).map(b => `<span class="perk brk" title="Сломан ${PARTN[b.stat]}: ${window.Shop.STAT_NAME[b.stat]} −${b.amount}. ${(ros.perks || []).includes('tinker') ? `Самоучка починит сам через ${b.left} эт., без потерь` : `Без ремонта через ${b.left} эт. спонсор поставит дешёвую запчасть (−${CFG.sponsorLoss} навсегда)`}">🔧${compact ? '' : ' ' + PARTN[b.stat] + ' '}−${b.amount}</span>`).join('');
 
   function placeOf(r) { return state.race.standings().indexOf(r) + 1; }
 
@@ -679,7 +679,7 @@
         <div class="rc-id" style="--rc:${r.color}">
           <div class="rc-ava">${faceR(r, 84)}</div>
           <div class="rc-name"><small>№${r.num}${r.human ? ' · ВЫ' : ''}</small>${r.name}</div>
-          <div class="rc-tags">${tierBadge(r.tier)}${perkBadges(r.perks, true)}${brokeTags(r)}</div>
+          <div class="rc-tags">${tierBadge(r.tier)}${perkBadges(r.perks, false)}${brokeTags(r, true)}</div>
           <div class="rc-tags"><span class="tag place" id="c-place"></span><span class="tag" id="c-lap"></span><span class="tag status" id="c-status"></span><span class="tag champ" id="c-champ"></span></div>
         </div>
         <div class="rc-stats">
@@ -707,7 +707,7 @@
             <span><em>Точность</em>${Math.round(w.acc * 100)}%</span>
             <span><em>Заряд</em>${w.charge}</span>
           </div>
-          <div class="w-eff">${eff.map(e => `<i>${e}</i>`).join('') || '<i>без эффекта</i>'}</div>
+          <div class="w-eff">${eff.slice(0, 3).map(e => `<i>${e}</i>`).join('') || '<i>без эффекта</i>'}${eff.length > 3 ? `<i class="more" title="${eff.slice(3).join(', ')}">+${eff.length - 3}</i>` : ''}</div>
           <div class="w-charge"><i id="c-charge"></i><span id="c-chargetxt"></span></div>
         </div>`;
       Card.update(r);
@@ -1867,6 +1867,7 @@
   const Paddock = {
     tab: 'news', after: null,
     show(after) {
+      if (!after && Paddock.after && $('#paddock').classList.contains('show')) after = Paddock.after; // уже открыт после гонки
       Paddock.after = after || null;
       Paddock.tab = 'news';
       Paddock.render();
@@ -2074,8 +2075,10 @@
     };
     const openRules = () => $('#rules').classList.add('show');
     $('#btnRules').onclick = openRules;
-    document.querySelectorAll('[data-close]').forEach(b => { b.onclick = () => $('#' + b.dataset.close).classList.remove('show'); });
-    ['rules', 'tableModal', 'paddock', 'dossier'].forEach(id => $('#' + id).addEventListener('click', e => { if (e.target.id === id) e.target.classList.remove('show'); }));
+    // закрыть окно; паддок после гонки закрывается так же, как «К трассе →», иначе игра застрянет между этапами
+    const closeModal = id => { if (id === 'paddock') Paddock.close(); else $('#' + id).classList.remove('show'); };
+    document.querySelectorAll('[data-close]').forEach(b => { b.onclick = () => closeModal(b.dataset.close); });
+    ['rules', 'tableModal', 'paddock', 'dossier'].forEach(id => $('#' + id).addEventListener('click', e => { if (e.target.id === id) closeModal(id); }));
     const pause = () => {
       state.paused = !state.paused;
       $('#btnPause').textContent = state.paused ? '▶' : '❚❚';
