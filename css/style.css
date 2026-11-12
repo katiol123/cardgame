@@ -847,3 +847,5 @@ svg.face .fx-tear { animation: fxTear 2s ease-in infinite; }
 .g-lv li.own i { background: #ffd23f; color: #111; }
 .g-lv li.next { color: #fff; }
 .g-lv li.next i { background: transparent; border: 1.5px solid #ffd23f; color: #ffd23f; line-height: 15px; }
+.undead.rise .ud-body { animation: ud-rise 1.2s ease-out, ud-float 2.4s ease-in-out 1.2s infinite; }
+@keyframes ud-rise { 0% { transform: translateY(14px) scale(.2); opacity: 0; } 60% { transform: translateY(-4px) scale(1.15); opacity: 1; } 100% { transform: none; } }

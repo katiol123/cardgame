@@ -136,6 +136,7 @@
     // нежить некроманта: призрачные черепа у обочины
     undead(race) {
       const svg = $('#trackSvg'), old = svg.querySelector('#undead');
+      TV.undeadN = (race.undead || []).length;
       if (old) old.remove();
       if (!race.undead || !race.undead.length) return;
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -152,6 +153,19 @@
           <path d="M-3 5 h6" class="ud-mouth"/></g></g>`;
       }).join('');
       svg.insertBefore(g, svg.querySelector('#tokens'));
+    },
+    // новые мертвецы (армия растёт): перерисовать слой и показать, как они встают
+    undeadRefresh(race) {
+      const n0 = TV.undeadN || 0;
+      if (!race.undead || race.undead.length === n0) return;
+      TV.undead(race);
+      race.undead.slice(n0).forEach(u => {
+        const el = document.querySelector(`#undead [data-u="${u.id}"]`);
+        if (el) el.classList.add('rise');
+        const p = race.track.pointAt(u.cell);
+        trackFx.flash(p.x, p.y, '#7dff9a', 50, 0.5); trackFx.burst(p.x, p.y, '#7dff9a', 22, { speed: 140, life: 0.9, g: -80 }); trackFx.smoke(p.x, p.y, 8, { size: 10 });
+      });
+      snd('undead');
     },
     undeadSync(race) {
       (race.undead || []).forEach(u => { const el = document.querySelector(`#undead [data-u="${u.id}"]`); if (el) el.classList.toggle('gone', !u.alive); });
@@ -989,7 +1003,7 @@
           if (u.crashed) FXS.crash(r.id);
           if (r.id === state.selected) Card.update(r);
         } else trackFx.text(p1.x, p1.y - 28, '💀 мимо', '#a9ffbf', { size: 12, life: 0.9 });
-        log(u.hit ? `💀 Нежить ${nm(u.owner)} бьёт ${nm(r)}: <span class="dmg">−${u.dmg}</span>${u.absorbed ? ` <span class="abs">(щит ${u.absorbed})</span>` : ''}${u.crashed ? ' · <b class="bad">АВАРИЯ!</b>' : ''}` : `💀 Нежить ${nm(u.owner)} промахивается по ${nm(r)}`, u.crashed ? 'bad' : 'atk');
+        log(u.hit ? `💀 Нежить ${nm(u.owner)} бьёт ${nm(r)}: <span class="dmg">−${u.dmg}</span>${u.absorbed ? ` <span class="abs">(щит ${u.absorbed})</span>` : ''}${u.crashed ? ' · <b class="bad">АВАРИЯ!</b>' : ''}${u.souls ? ` · некромант пожинает ${u.souls > 1 ? u.souls + ' души' : 'душу'}` : ''}` : `💀 Нежить ${nm(u.owner)} промахивается по ${nm(r)}`, u.crashed ? 'bad' : 'atk');
       }
     }
     if (mv.cellFx) {
@@ -1020,6 +1034,7 @@
       }
     }
     showPerkFx(race);
+    TV.undeadRefresh(race);
     if (res.fame > 0 && !res.show) { const pf = TV.xy(r.id); trackFx.text(pf.x + 18, pf.y - 40, '★+' + res.fame, '#ffd23f', { size: 12, life: 1 }); }
     if (obs()) Card.update(r);
     const sel = race.racers[state.selected];
@@ -1212,7 +1227,7 @@
     const race = state.race;
     race.racers.forEach(r => { const t = TV.tokens[r.id]; if (t.hop) { const f = t.hop.resolve; t.hop = null; f(); } t.pos = r.pos; });
     TV.relayout(true);
-    TV.undeadSync(race);
+    TV.undeadRefresh(race); TV.undeadSync(race);
     state.acting = -1;
     selectRacer(state.selected);
     header();

@@ -213,6 +213,17 @@
       });
     }
 
+    // армия растёт: на месте аварии некромант поднимает мертвеца из обломков
+    raiseUndead(t) {
+      if (!this.undead || t.pos <= 2 || t.pos >= this.track.total) return;
+      const N = this.track.N, cell = ((Math.floor(t.pos) % N) + N) % N;
+      if (cell < 3 || this.undead.some(u => u.alive && u.cell === cell)) return;
+      const necro = this.racers.find(r => has(r, 'necro') && !r.finished && this.undead.filter(u => u.alive && u.owner === r.id).length < CFG.undeadMax);
+      if (!necro) return;
+      this.undead.push({ id: this.undead.length, cell, owner: necro.id, alive: true, raised: true });
+      this.fx.push({ id: t.id, text: '💀 ИЗ ОБЛОМКОВ ВСТАЁТ МЕРТВЕЦ', color: '#7dff9a' });
+    }
+
     // удар нежити по гонщику, закончившему ход на её клетке (паладин изгоняет)
     undeadCheck(r) {
       if (!this.undead.length || r.skip || r.finished || r.pos <= 0 || r.pos >= this.track.total) return null;
@@ -236,6 +247,14 @@
       res.dmg = d.real; res.absorbed = d.absorbed; res.crashed = d.crashed; res.lucky = d.lucky;
       owner.dmgDealt += d.real;
       if (d.crashed) { owner.kills++; owner.fame += G.ECON.fameCrash; }
+      // жатва душ: удар нежити питает некроманта, где бы он ни был
+      const k = d.crashed ? CFG.soulCrashMul : 1;
+      if (!owner.finished) {
+        owner.nitro = Math.min(CFG.nitroMax, owner.nitro + CFG.soulNitro * k);
+        if (!owner.skip) owner.speed = Math.min(F.vmax(owner) + 1, owner.speed + CFG.soulRush * k);
+        res.souls = k;
+        if (d.crashed) this.fx.push({ id: owner.id, text: '💀 ЖАТВА ДУШ', color: '#7dff9a' });
+      }
       if (has(r, 'avenger') && !r.skip) { r.charge = Math.min(r.weapon.charge, r.charge + 3); r.revengeOn = owner.id; }
       return res;
     }
@@ -272,6 +291,7 @@
     crash(t) {
       t.skip = Math.max(1, CFG.crashSkip - (t.crew && t.crew.mech >= 3 ? 1 : 0) - (has(t, 'phoenix') ? 1 : 0)); t.speed = 0; t.nitro = 0; t.shield = 0; t.burn = null; t.frac = 0;
       t.charge = Math.floor(t.charge / 2); t.crashes++;
+      this.raiseUndead(t);
       // поломка узла: проявится со следующего этапа
       if (CFG.breakOn && this.rand() < CFG.breakChance) {
         const st = ['accel', 'top', 'handling'][Math.floor(this.rand() * 3)];
