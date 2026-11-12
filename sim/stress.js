@@ -13,7 +13,7 @@ for (let k = 0; k < N; k++) {
   roster.forEach(r => {
     r.perks = [];
     if (rnd() < 0.7) r.perks.push(keys[Math.floor(rnd() * keys.length)]);
-    if (rnd() < 0.3) { const o = keys.filter(x => !r.perks.includes(x)); r.perks.push(o[Math.floor(rnd() * o.length)]); }
+    if (rnd() < 0.3) { const o = keys.filter(x => !r.perks.includes(x) && !(G.PERKS[x].cls && r.perks.some(y => G.PERKS[y].cls))); r.perks.push(o[Math.floor(rnd() * o.length)]); }
     ['mech', 'gun', 'armor', 'nitro'].forEach(c => { r.crew[c] = Math.floor(rnd() * 4); });
     ['cal', 'mag', 'aim'].forEach(c => { r.wmods[c] = Math.floor(rnd() * 4); });
     if (rnd() < 0.4) r.weapon = G.WEAPONS[Math.floor(rnd() * G.WEAPONS.length)].id;
@@ -38,6 +38,7 @@ for (let k = 0; k < N; k++) {
         if (r.skip < 0 || (r.stunned || 0) < 0) fail('skip/stunned < 0', race, r);
         if (!(r.morale >= 0 && r.morale <= 100)) fail('мораль вне 0..100', race, r);
         if (!r.board.hasMove()) fail('на поле нет ходов', race, r);
+        if (r.perks.filter(p => G.PERKS[p].cls).length > 1) fail('два класса у одного гонщика', race, r);
       }
       if (res && res.match && !res.match.final.every(Boolean)) fail('дыра на поле', race, res.racer);
     }

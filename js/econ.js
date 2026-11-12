@@ -142,7 +142,7 @@
     const holders = roster.filter(r => r.perks.length);
     if (holders.length) {
       const lucky = holders[Math.floor(rand() * holders.length)];
-      const rest = keys.filter(k => k !== lucky.perks[0]);
+      const rest = keys.filter(k => k !== lucky.perks[0] && !(G.PERKS[k].cls && G.PERKS[lucky.perks[0]].cls)); // класс — только один
       lucky.perks.push(rest[Math.floor(rand() * rest.length)]);
     }
     // паладин получает реликвию вместо стартовой пушки: компенсация за редкую пушку возвращается

@@ -164,6 +164,9 @@
     monk: { name: 'Монах', icon: '☯', desc: 'Шкала «Ци»: +1 за каждый ход, +2 за каждую волну каскада и за каждый спецблок. Набрав 10, входит в «Просветление»: весь улов с поля на следующем ходу удваивается.' },
     ram: { name: 'Таран', icon: '🐏', desc: 'Модель поведения, неоднозначная: гонится за соперниками и, закончив ход в одной клетке с ними, таранит — сопернику −12 прочности и −1 к скорости. Но и сам получает −6 прочности сквозь щит и может разбиться.', behavior: true, ambiguous: true }
   };
+  // Классы героя: у гонщика может быть только один класс (второй перк — не класс)
+  const CLASS_PERKS = ['paladin', 'necro', 'alchemist', 'archmage', 'assassin', 'berserker', 'druid', 'warlock', 'shaman', 'monk'];
+  CLASS_PERKS.forEach(k => { PERKS[k].cls = true; });
 
   /* Экономика «Славы» ★ */
   const ECON = {
@@ -299,6 +302,6 @@
     dmgMul: 1.7
   };
 
-  G.RARITY = RARITY; G.TIERS = TIERS; G.PERKS = PERKS; G.PERK_CHANCE = PERK_CHANCE; G.ECON = ECON; G.makeWeapon = makeWeapon;
+  G.RARITY = RARITY; G.TIERS = TIERS; G.PERKS = PERKS; G.CLASS_PERKS = CLASS_PERKS; G.PERK_CHANCE = PERK_CHANCE; G.ECON = ECON; G.makeWeapon = makeWeapon;
   G.GEMS = GEMS; G.NOVA = NOVA; G.SPECIALS = SPECIALS; G.WEAPONS = WEAPONS; G.RACERS = RACERS; G.CFG = CFG;
 })(typeof window !== 'undefined' ? window : globalThis);
