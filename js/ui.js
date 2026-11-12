@@ -700,7 +700,7 @@
           </div>
         </div>
         <div class="rc-weapon" id="m-charge" style="--wc:${w.color}">
-          <div class="w-head">${Art.weaponIcon(w, 40)}<div><b>${w.name}</b><small><span style="color:${window.RARITY[w.rarity].color}">${window.RARITY[w.rarity].name}</span>${w.mods && (w.mods.cal + w.mods.mag + w.mods.aim) ? ` · тюнинг ${w.mods.cal}/${w.mods.mag}/${w.mods.aim}` : ''} · ${w.desc}</small></div></div>
+          <div class="w-head" title="${w.desc}">${Art.weaponIcon(w, 40)}<div><b>${w.name}</b><small><span style="color:${window.RARITY[w.rarity].color}">${window.RARITY[w.rarity].name}</span>${w.mods && (w.mods.cal + w.mods.mag + w.mods.aim) ? ` · тюнинг ${w.mods.cal}/${w.mods.mag}/${w.mods.aim}` : ''}</small></div></div>
           <div class="w-stats">
             <span><em>Урон</em>${Math.round(w.dmg * CFG.dmgMul)}</span>
             <span><em>Дальность</em>${w.range} · ${DIR[w.dir]}</span>

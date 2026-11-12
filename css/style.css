@@ -882,14 +882,11 @@ body.replay .track-wrap { box-shadow: 0 0 0 1px rgba(255, 210, 63, .35), 0 0 40p
 
 /* карточка гонщика — стабильная высота: трасса над ней не должна прыгать от хода к ходу */
 .racer-card { height: var(--card-h, 236px); overflow: hidden; align-items: start; }
-.racer-card > * { min-height: 0; max-height: 100%; overflow: hidden; }
-.rc-weapon .w-stats { grid-template-columns: 1fr 1fr; gap: 3px 10px; margin: 6px 0 5px; }
-.rc-weapon .w-stats span { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; white-space: nowrap; }
-.rc-weapon .w-stats em { display: inline; }
-.rc-weapon .w-head small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.racer-card > * { min-height: 0; max-height: 100%; overflow-x: visible; overflow-y: clip; } /* обрезка только по высоте: ширина колонок — по содержимому */
 .rc-id .rc-tags .tag { font-size: 10px; padding: 1px 6px; }
 .rc-ava .face { width: 76px; height: 76px; }
 .racer-card { --card-h: 256px; }
+@media (max-width: 1560px) { .racer-card { --card-h: 280px; } }
 @media (max-width: 1380px) { .racer-card { --card-h: 430px; } }
 @media (max-width: 1100px) { .racer-card { height: auto; overflow: visible; } .racer-card > * { max-height: none; overflow: visible; } }
 /* шапка: имена в чипах не должны переносить шапку на вторую строку от хода к ходу */
