@@ -1591,7 +1591,8 @@
       const race = new window.Race({ track: state.track, roster: JSON.parse(JSON.stringify(inp.roster)), human: inp.human, grid: inp.grid, mods: { rain: inp.rain }, seed: inp.seed });
       Replay.race = race; Replay.log = Replay.orig.race.humanLog.slice();
       state.race = race; state.acting = -1; state.paused = false;
-      state.selected = inp.human >= 0 ? inp.human : race.order[0];
+      // выбранный в повторе: пилот игрока, а в режиме зрителя — победитель гонки (от него считаются «свой/чужой круг»)
+      state.selected = inp.human >= 0 ? inp.human : Replay.orig.race.racers.find(r => r.place === 1).id;
       state.speed = Math.min(4, Replay.speed * 2);
       document.body.classList.add('replay'); $('#turnName').textContent = '—';
       TV.build(state.track, race.racers); TV.undead(race); Stand.build(race); TV.updateClasses();
