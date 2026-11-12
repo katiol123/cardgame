@@ -370,7 +370,7 @@
     impact(b, w, hit) {
       const fx = trackFx;
       if (hit.hit) {
-        snd(hit.dmg === 0 && hit.absorbed > 0 ? 'shield' : 'hit', { big: hit.dmg >= 40 });
+        snd(hit.dmg === 0 && hit.absorbed > 0 ? 'shield' : 'hit', { big: hit.dmg >= 40 || hit.crit });
         fx.flash(b.x, b.y, w.color, 44, 0.35);
         fx.ring(b.x, b.y, w.color, 46, { life: 0.5, width: 5 });
         fx.burst(b.x, b.y, w.color, 26, { speed: 260, life: 0.6, g: 120 });
@@ -1492,7 +1492,8 @@
         const R = window.RARITY;
         body = `<div class="g-cur" style="--wc:${w.color}">${Art.weaponIcon(w, 46)}<div><small>Текущее оружие · <span style="color:${R[w.rarity].color}">${R[w.rarity].name}</span></small><b>${w.name}</b><small>${w.desc}</small></div>${w.relic ? '<div class="g-sell">⚜ навсегда</div>' : `<div class="g-sell">продажа: ★${window.Shop.sellValue(ros)}</div>`}</div>
           <h4>Тюнинг текущего оружия</h4>` +
-          Object.entries(window.ECON.wmods).map(([k, m]) => `<div class="g-item"><div class="g-main"><b><span class="g-nm">${m.icon} ${m.name}</span>${pips(ros.wmods[k])}</b><small>${m.desc} · оружейные апы приносят больше славы за попадания</small></div>${buyBtn(find('wmod', k))}</div>`).join('') +
+          Object.entries(window.ECON.wmods).map(([k, m]) => `<div class="g-item"><div class="g-main"><b><span class="g-nm">${m.icon} ${m.name}</span>${pips(ros.wmods[k])}</b>` +
+            `<ol class="g-lv">${m.levels.map((t, i) => `<li class="${i < ros.wmods[k] ? 'own' : i === ros.wmods[k] ? 'next' : ''}"><i>${i + 1}</i>${t}</li>`).join('')}</ol></div>${buyBtn(find('wmod', k))}</div>`).join('') +
           (ros.perks.includes('paladin') ? '<h4>Оружейный рынок</h4><p class="g-note">⚜ Паладин не расстаётся с реликвией: «Молот Света» нельзя продать или сменить. Тюнинг — пожалуйста.</p>' :
           `<h4>Оружейный рынок <small>тюнинг при смене пушки сбрасывается, старая продаётся за полцены</small></h4><div class="g-shop">` +
           WEAPONS.filter(x => !x.relic).sort((a, b) => a.price - b.price).map(x => {
@@ -1697,7 +1698,7 @@
           <section><h4>Оружие</h4><div class="ds-w" style="--wc:${w.color};--rr:${R.color}">${Art.weaponIcon(w, 40)}<div><b>${w.name}</b><small style="color:${R.color}">${R.name}</small><p>${w.desc}</p></div></div>
             <div class="w-stats"><span><em>Урон</em>${Math.round(w.dmg * CFG.dmgMul)}</span><span><em>Дальность</em>${w.range} · ${DIR[w.dir]}</span><span><em>Точность</em>${Math.round(w.acc * 100)}%</span><span><em>Заряд</em>${w.charge}</span></div>
             <div class="w-eff">${effects.map(e => `<i>${e}</i>`).join('') || '<i>без эффекта</i>'}</div>
-            <div class="ds-tune">${Object.entries(window.ECON.wmods).map(([k, m]) => `<div><span>${m.icon}</span><span>${m.name}</span>${pips(ros.wmods[k])}</div>`).join('')}</div>
+            <div class="ds-tune">${Object.entries(window.ECON.wmods).map(([k, m]) => `<div title="${m.levels.map((t, i) => `${i < ros.wmods[k] ? '✔' : '·'} ${i + 1}: ${t}`).join('\n')}"><span>${m.icon}</span><span>${m.name}</span>${pips(ros.wmods[k])}</div>`).join('')}</div>
             <h4>Команда</h4><div class="ds-crew">${Object.entries(window.ECON.crew).map(([k, c]) => `<div title="${c.desc}" class="${ros.crew[k] ? '' : 'off'}"><span>${c.icon}</span><span>${c.name}</span>${pips(ros.crew[k])}</div>`).join('')}</div></section>
         </div>
         <section><h4>История сезона <small>среднее место ${avgPlace} · попаданий ${tot.hits}/${tot.shots} · урон ${tot.dmg} · аварий ${tot.crashes} · срывов в давке ${tot.nerves} · заработано ★${tot.fame}</small></h4>
@@ -1743,7 +1744,7 @@
         <div class="points-row">${window.POINTS_TABLE.map((p, i) => `<span><em>${i + 1}</em>${p}</span>`).join('')}<span><em>13–16</em>0</span></div>
         <p>На первом этапе стартовая решётка — по жребию, дальше в обратном порядке таблицы: лидер стартует последним. При равенстве очков выше тот, у кого больше побед, затем подиумов. Прогресс сохраняется в браузере.</p></section>
       <section><h3>Слава ★ и гараж</h3><p>Слава — валюта спонсоров. Её приносят: <b>призовые</b> за место (★${window.ECON.prize[0]} за победу … ★${window.ECON.prize[15]} за 16-е), <b>зрелищность</b> — попадание ★${window.ECON.fameHit}, отправить соперника в аварию ★${window.ECON.fameCrash}, каскад ×3 и больше ★${window.ECON.fameCombo} за каждую волну сверх двух, и <b>шоу для фанатов</b>: финишировавший продолжает ходить на поле, и каждый сожжённый блок даёт славу.</p>
-        <p>Между этапами славу тратят в гараже: +1 к характеристикам байка, оружие разной редкости (обычное → редкое → эпическое → легендарное, 4 пушки только в гараже), тюнинг оружия (калибр, магазин, прицел) и команда — механик, оружейник, бронетехник, нитро-инженер. ИИ-соперники тоже зарабатывают и покупают — их покупки видны в «Новостях паддока».</p></section>
+        <p>Между этапами славу тратят в гараже: +1 к характеристикам байка, оружие разной редкости (обычное → редкое → эпическое → легендарное, 4 пушки только в гараже), тюнинг оружия (калибр, магазин, прицел: каждый уровень открывает новое свойство — реактивные патроны, двойной выстрел, криты с оглушением и т.д.) и команда — механик, оружейник, бронетехник, нитро-инженер. ИИ-соперники тоже зарабатывают и покупают — их покупки видны в «Новостях паддока».</p></section>
       <section><h3>Уровни мастерства и перки</h3><p>Каждый чемпионат состав генерируется заново. Уровень гонщика: ${Object.values(window.TIERS).map(t => `<b style="color:${t.color}">${t.icon} ${t.name}</b> (${Math.round(t.chance * 100)}%, сумма характеристик ${t.sum[0]}–${t.sum[1]})`).join(', ')}. С шансом ${Math.round(window.PERK_CHANCE * 100)}% гонщик получает перк, а один случайный обладатель перка — второй, другой. Перки разные по силе, некоторые меняют поведение ИИ (отмечены рамкой):</p>
         <div class="rgrid">${Object.values(window.PERKS).map(p => `<div class="rg"><span class="perk-big">${p.icon}</span><div><b>${p.name}</b>${p.behavior ? ' <small class="beh-l">поведение</small>' : ''}${p.ambiguous ? ' <small class="amb-l">⚖ неоднозначный</small>' : ''}<p>${p.desc}</p></div></div>`).join('')}</div></section>
       <section><h3>Мораль и давка</h3><p>У каждого гонщика есть <b>мораль</b> от 0 до 100: у элиты в среднем выше, у новичков ниже. Мораль влияет на <b>твёрдость руки</b> — точность стрельбы от −10% (мораль 0) до +10% (мораль 100) — и на нервы в <b>давке</b>. С ${CFG.crowdFrom}-го раунда, если в соседних клетках (±1) двое и больше соперников, гонщик проверяет нервы. Чем больше толпа и ниже мораль, тем выше шанс «дрогнуть» (😰 −${String(CFG.crowdLoss[0]).replace('.', ',')}…${String(CFG.crowdLoss[1]).replace('.', ',')} к скорости) или, в ${Math.round(CFG.breakdownChance * 100)}% провалов, сорваться (😱 нервный срыв — <b>пропуск следующего хода</b>). Агрессор давит за двоих, Хладнокровный дрогнет вдвое реже.</p>

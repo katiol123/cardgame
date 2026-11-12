@@ -75,7 +75,7 @@
     let v;
     if (o.type === 'weapon') v = W_POWER[G.WEAPONS.find(w => w.id === o.key).rarity] - W_POWER[weaponOf(ros).rarity]; // мест к обычной пушке, sim/weapons.js
     else if (o.type === 'repair') v = E.value.stat[o.stat] * (o.amount * 1.5 + G.CFG.sponsorLoss * 4); // ремонт спасает и от постоянной потери
-    else v = E.value[o.type][o.key];
+    else { const vv = E.value[o.type][o.key]; v = Array.isArray(vv) ? vv[o.lvl] : vv; } // у тюнинга сила своя на каждом уровне
     if (o.type === 'stat') v *= 1.25 - ros.stats[o.key] / 25;
     if (o.type === 'repair') v *= 1.25 - ros.stats[o.stat] / 25; // слабые характеристики тянет подтянуть
     if (o.type === 'wmod' || (o.type === 'crew' && o.key === 'gun')) v += 0.01; // оружейные апы ещё и приносят немного славы за попадания

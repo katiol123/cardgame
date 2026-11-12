@@ -254,7 +254,9 @@
 
     applyDamage(t, dmg, pierce) {
       let absorbed = 0;
-      if (!pierce) { absorbed = Math.min(t.shield, dmg); t.shield -= absorbed; }
+      // pierce: true — щит не работает; число 0..1 — доля удара, проходящая сквозь щит
+      const pf = pierce === true ? 1 : +pierce || 0;
+      if (pf < 1) { absorbed = Math.min(t.shield, Math.round(dmg * (1 - pf))); t.shield -= absorbed; }
       const real = dmg - absorbed;
       t.hp = Math.max(0, t.hp - real);
       let lucky = false;
@@ -315,9 +317,10 @@
       const targets = AI.pickTargets(this, r, list);
       if (!targets.length) return null;
       r.charge = 0; r.shots++;
-      const hits = targets.map(t => {
-        let acc = w.acc * (this.mods.accMul || 1) * (1 + (r.morale - 50) / 500); // мораль: твёрдость руки ±10%
-        if (this.track.cell(r.pos).tunnel || this.track.cell(t.pos).tunnel) acc *= 0.6;
+      const tn = w.tune || {};
+      const fire = (t, mult) => {
+        let acc = w.acc * (tn.steady ? 1 : this.mods.accMul || 1) * (1 + (r.morale - 50) / 500); // мораль: твёрдость руки ±10%
+        if (!tn.steady && (this.track.cell(r.pos).tunnel || this.track.cell(t.pos).tunnel)) acc *= 0.6;
         const chance = acc * (1 - F.dodge(t));
         const hit = this.rand() < chance;
         const res = { target: t, hit, chance, dmg: 0, absorbed: 0, crashed: false, effects: [] };
@@ -328,7 +331,14 @@
         const hunt = has(r, 'hunter') && this.standings().indexOf(t) < 3;
         if (revenge) r.revengeOn = -1;
         const smite = w.effect.smite && has(t, 'necro') ? w.effect.smite : 1;
-        const d = this.applyDamage(t, Math.round(w.dmg * CFG.dmgMul * (has(r, 'aggro') ? 1.2 : 1) * (revenge ? 1.5 : 1) * (hunt ? 1.3 : 1) * smite), w.effect.pierce);
+        const crit = tn.crit && this.rand() < (tn.stun ? CFG.critChance3 : CFG.critChance);
+        const d = this.applyDamage(t, Math.round(w.dmg * CFG.dmgMul * mult * (crit ? CFG.critMul : 1) * (has(r, 'aggro') ? 1.2 : 1) * (revenge ? 1.5 : 1) * (hunt ? 1.3 : 1) * smite), w.effect.pierce);
+        const em = (tn.fxMul || 1) * (crit ? CFG.critFx : 1), f1 = v => Math.round(v * em * 10) / 10; // сила эффектов пушки
+        if (mult < 1) res.effects.push('второй залп');
+        if (crit) { res.crit = true; r.speed = Math.min(F.vmax(r) + 1, r.speed + CFG.critRush); res.effects.push('КРИТ ×' + String(CFG.critMul).replace('.', ',')); }
+        if (crit && tn.stun && !d.crashed && !t.skip && !t.finished) { t.stunned = Math.max(t.stunned || 0, 1); res.stunned = true; res.effects.push('оглушён: пропуск хода'); }
+        if (tn.hitNitro) r.nitro = Math.min(CFG.nitroMax, r.nitro + tn.hitNitro);
+        if (tn.recoil) { r.speed = Math.min(F.vmax(r) + 1, r.speed + CFG.recoil); res.effects.push(`реактивная отдача +${String(CFG.recoil).replace('.', ',')}`); }
         if (smite > 1) res.effects.push(`кара некроманту ×${smite}`);
         if (hunt) res.effects.push('охота на лидера ×1,3');
         if (revenge) res.effects.push('месть ×1,5');
@@ -336,7 +346,10 @@
         r.dmgDealt += d.real;
         r.fame += G.ECON.fameHit + (d.crashed ? G.ECON.fameCrash : 0);
         if (d.crashed) r.kills++;
-        const e = w.effect, cold = has(t, 'cold'), heavy = has(t, 'heavy'), fireproof = has(t, 'pyro');
+        const e0 = w.effect, e = Object.assign({}, e0, {
+          slow: (e0.slow || tn.crush) && f1((e0.slow || 0) + (tn.crush ? CFG.crushSlow : 0)), pull: e0.pull && f1(e0.pull), rush: e0.rush && f1(e0.rush), nitro: e0.nitro && Math.round(e0.nitro * em),
+          knock: (e0.knock || 0) + (tn.crush && !d.crashed ? CFG.crushKnock : 0)
+        }), cold = has(t, 'cold'), heavy = has(t, 'heavy'), fireproof = has(t, 'pyro');
         if ((cold && (e.slow || e.lock || e.strip)) || (heavy && (e.pull || e.knock)) || (fireproof && e.burn)) res.effects.push('иммунитет');
         if (e.slow && !cold) { t.speed = Math.max(0, t.speed - e.slow); res.effects.push(`−${e.slow} скорости`); }
         if (e.burn && !t.skip && !fireproof) { t.burn = { dmg: e.burn.dmg, turns: e.burn.turns, src: r.id }; res.effects.push('поджог'); }
@@ -356,7 +369,12 @@
         if (e.knock && !heavy) { res.knockFrom = t.pos; t.pos -= e.knock; res.knockTo = t.pos; res.effects.push(`отброшен на ${e.knock}`); }
         if (e.strip && !cold) { t.grip = 0; res.effects.push('сцепление потеряно'); }
         return res;
-      });
+      };
+      let hits = targets.map(t => fire(t, 1));
+      // двойной выстрел: второй залп по уцелевшим целям
+      if (tn.double && !targets[0].skip && !targets[0].finished) hits.push(fire(targets[0], CFG.doubleMul));
+      // запас заряда: после выстрела часть заряда остаётся в магазине
+      if (tn.keep) r.charge = Math.floor(w.charge * CFG.keepCharge);
       return { attacker: r, weapon: w, hits };
     }
 

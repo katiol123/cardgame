@@ -838,3 +838,12 @@ svg.face .fx-tear { animation: fxTear 2s ease-in infinite; }
 @keyframes ud-float { 50% { transform: translateY(-3px); } }
 @keyframes ud-strike { 40% { fill: #7dff9a; filter: drop-shadow(0 0 14px #7dff9a); } }
 .g-note { color: #ffe9a0; background: rgba(255,233,160,.07); border: 1px solid rgba(255,233,160,.25); border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+
+/* уровни тюнинга в гараже */
+.g-lv { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 3px; font-size: 12px; }
+.g-lv li { display: flex; gap: 7px; align-items: baseline; color: #6f7a90; }
+.g-lv li i { font-style: normal; flex: 0 0 18px; height: 18px; line-height: 18px; text-align: center; border-radius: 50%; background: #1a2030; color: #8a95ab; font-size: 11px; font-weight: 700; }
+.g-lv li.own { color: #c9d3e6; }
+.g-lv li.own i { background: #ffd23f; color: #111; }
+.g-lv li.next { color: #fff; }
+.g-lv li.next i { background: transparent; border: 1.5px solid #ffd23f; color: #ffd23f; line-height: 15px; }
