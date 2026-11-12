@@ -72,16 +72,21 @@
       };
       // мост «восьмёрки»: второй проход по кругу рисуем поверх
       let bridge = [];
+      TV.under = new Set();
       if (track.crossing) {
         const P = track.def.cross || track.def.points[0], near = track.cells.map((c, k) => [Math.hypot(c.x - P[0], c.y - P[1]), k]).sort((a, b) => a[0] - b[0]);
         const c1 = near[0][1], c2 = near.find(x => Math.abs(x[1] - c1) > track.N / 4)[1];
         for (let k = -2; k <= 2; k++) bridge.push((c2 + k + track.N) % track.N);
+        // клетки нижней дороги, которые накрывает настил моста: фишки на них уходят под мост
+        const bc = track.cells[c2];
+        track.cells.forEach(c => { if (!bridge.includes(c.i) && Math.hypot(c.x - bc.x, c.y - bc.y) < 46) TV.under.add(c.i); });
       }
       h += '<g class="cells">' + track.cells.filter(c => !bridge.includes(c.i)).map(cellSvg).join('') + '</g>';
       if (bridge.length) {
         const pts = [];
         for (let f = -2.6; f <= 2.6; f += 0.2) { const p = track.pointAt(bridge[2] + f); pts.push(`${p.x.toFixed(1)} ${p.y.toFixed(1)}`); }
         const d = 'M' + pts.join(' L');
+        h += '<g id="tokensUnder"></g>'; // фишки под мостом — ниже настила
         h += `<path d="${d}" fill="none" stroke="#000" stroke-width="100" opacity=".6" filter="url(#blur8)"/>
           <path d="${d}" fill="none" stroke="#8a93a8" stroke-width="76"/><path d="${d}" fill="none" stroke="#24272f" stroke-width="64"/><path d="${d}" fill="none" stroke="#2c303a" stroke-width="44"/>`;
         h += '<g class="cells">' + bridge.map(k => cellSvg(track.cells[k])).join('') + '</g>';
@@ -264,6 +269,10 @@
           t.lat += (t.tLat - t.lat) * 0.15;
           t.along += (t.tAlong - t.along) * 0.15;
           const p = track.pointAt(t.pos + t.along / track.step);
+          if (TV.under && TV.under.size) {
+            const cell = ((Math.round(t.pos) % track.N) + track.N) % track.N, under = TV.under.has(cell) && lift < 0.8;
+            if (under !== !!t.under) { t.under = under; const layer = document.getElementById(under ? 'tokensUnder' : 'tokens'); if (layer) layer.appendChild(t.el); }
+          }
           let x = p.x - Math.sin(p.a) * t.lat, y = p.y + Math.cos(p.a) * t.lat - lift * 10;
           if (t.shake > 0) { x += (Math.random() - 0.5) * t.shake; y += (Math.random() - 0.5) * t.shake; t.shake *= 0.9; if (t.shake < 0.3) t.shake = 0; }
           const sc = 1 + lift * 0.28;
@@ -290,7 +299,7 @@
       });
       // выбранный и ходящий — сверху
       const layer = $('#tokens');
-      [state.acting, state.selected].forEach(id => { if (id >= 0 && TV.tokens[id]) layer.appendChild(TV.tokens[id].el); });
+      [state.acting, state.selected].forEach(id => { if (id >= 0 && TV.tokens[id]) (TV.tokens[id].el.parentNode || layer).appendChild(TV.tokens[id].el); });
     }
   };
 
@@ -2095,6 +2104,6 @@
     });
   }
 
-  window.__yarost = { state, Champ }; // для отладки и автотестов
+  window.__yarost = { state, Champ, TV, syncAll }; // для отладки и автотестов
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
