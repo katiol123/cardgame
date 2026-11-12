@@ -623,7 +623,7 @@
   }
   const brokenOf = (ros, k) => (ros && ros.broken || []).filter(x => x.stat === k).reduce((a, x) => a + x.amount, 0);
   const PARTN = { accel: 'двигатель', top: 'трансмиссия', handling: 'подвеска' };
-  const brokeTags = ros => (ros && ros.broken || []).map(b => `<span class="perk brk" title="Сломан ${PARTN[b.stat]}: ${window.Shop.STAT_NAME[b.stat]} −${b.amount}. Без ремонта через ${b.left} эт. спонсор поставит дешёвую запчасть (−${CFG.sponsorLoss} навсегда)">🔧 ${PARTN[b.stat]} −${b.amount}</span>`).join('');
+  const brokeTags = ros => (ros && ros.broken || []).map(b => `<span class="perk brk" title="Сломан ${PARTN[b.stat]}: ${window.Shop.STAT_NAME[b.stat]} −${b.amount}. ${(ros.perks || []).includes('tinker') ? `Самоучка починит сам через ${b.left} эт., без потерь` : `Без ремонта через ${b.left} эт. спонсор поставит дешёвую запчасть (−${CFG.sponsorLoss} навсегда)`}">🔧 ${PARTN[b.stat]} −${b.amount}</span>`).join('');
 
   function placeOf(r) { return state.race.standings().indexOf(r) + 1; }
 
@@ -894,6 +894,7 @@
     }
     // --- ход на поле ---
     if (obs()) {
+      if (res.gift) { BV.sync(res.match.before); const gp = BV.center(res.gift.i); BV.toast('🧩 ' + SPECIALS[res.gift.special].name + '!', gp, '#ffd23f'); snd('born'); await wait(350); }
       await BV.animate(res.match, r);
       if (!alive()) return;
       showGains(res);
@@ -912,6 +913,12 @@
         const b = TV.xy(hit.target.id);
         await FXS.shot(att, hit.hit, a, b);
         FXS.impact(b, att.weapon, hit);
+        if (hit.reflected) { // зеркальная броня: удар вернулся в стрелка
+          trackFx.beam(b.x, b.y, a.x, a.y, '#dfe8ff', { width: 4, life: 0.4, jitter: 4 });
+          trackFx.text(a.x, a.y - 30, '🪞 −' + hit.reflected.dmg, '#dfe8ff', { size: 18 });
+          TV.tokens[r.id].shake = 10;
+          if (hit.reflected.crashed) FXS.crash(r.id);
+        }
         if (hit.target.id === state.selected) {
           const card = $('#racerCard');
           card.classList.remove('hit'); void card.offsetWidth; if (hit.hit) card.classList.add('hit');
@@ -1581,6 +1588,7 @@
     race.racers.forEach(r => (row[r.id].brk || []).forEach(e => {
       if (e.type === 'broke') H.push({ ic: '🔧', t: `${nmId(r.id)} ломает ${PARTN[e.stat]} — ${window.Shop.STAT_NAME[e.stat].toLowerCase()} −${CFG.breakAmount}, пока не починят` });
       if (e.type === 'sponsor') H.push({ ic: '🪛', t: `Спонсор ставит ${nmId(r.id)} дешёвый ${PARTN[e.stat]}: ${window.Shop.STAT_NAME[e.stat].toLowerCase()} −${e.loss} навсегда` });
+      if (e.type === 'selffix') H.push({ ic: '🔩', t: `Самоучка ${nmId(r.id)} сам перебирает ${PARTN[e.stat]} — без потерь` });
       if (e.type === 'mechfix') H.push({ ic: '🛠', t: `Механик ${nmId(r.id)} своими руками чинит ${PARTN[e.stat]}` });
     }));
     const show = by(r => r.showFame, 1);

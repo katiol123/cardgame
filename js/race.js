@@ -33,7 +33,7 @@
     vmaxRaw: r => CFG.vmaxBase + CFG.vmaxPer * r.stats.top + (r.tm.vmaxAdd || 0) - (has(r, 'heavy') ? 0.4 : 0),
     accel: r => CFG.accBase + CFG.accPer * r.stats.accel,
     corner: (r, sev, grip) => CFG.cornerBase + CFG.cornerPer * r.stats.handling +
-      CFG.gripPer * (grip === undefined ? r.grip : grip) - (sev === 2 ? CFG.hairpinPenalty : 0) + (r.tm.cornerAdd || 0) + (has(r, 'stunt') ? 1.3 : 0) + (has(r, 'careful') ? 0.8 : 0),
+      CFG.gripPer * (grip === undefined ? r.grip : grip) - (sev === 2 ? CFG.hairpinPenalty : 0) + (r.tm.cornerAdd || 0) + (has(r, 'stunt') ? 1.3 : 0) + (has(r, 'careful') ? 0.8 : 0) + (has(r, 'rainman') && r.tm.rain ? CFG.rainCorner : 0),
     dodge: r => Math.min(0.5, CFG.dodgePer * r.stats.handling + CFG.gripDodge * r.grip + (has(r, 'lucky') ? 0.1 : 0)),
     nitroBoost: r => (CFG.nitroBase + CFG.nitroPer * r.stats.top + 0.7 * r.crew.nitro) * (has(r, 'tactic') ? 2.5 : 1)
   };
@@ -193,6 +193,7 @@
         r.charge = Math.min(r.weapon.charge, Math.floor(r.weapon.charge * 0.4 * r.crew.gun));
         r.nitro = Math.min(CFG.nitroMax, 3 * r.crew.nitro);
       });
+      this.racers.forEach(r => { if (has(r, 'combinator')) r.board.addSpecial(); });
       // некромант поднимает нежить: по мертвецу в разных секторах круга (круг делится на 3 сектора)
       this.undead = [];
       const N = this.track.N, taken = new Set();
@@ -269,7 +270,7 @@
     }
 
     crash(t) {
-      t.skip = CFG.crashSkip - (t.crew && t.crew.mech >= 3 ? 1 : 0); t.speed = 0; t.nitro = 0; t.shield = 0; t.burn = null; t.frac = 0;
+      t.skip = Math.max(1, CFG.crashSkip - (t.crew && t.crew.mech >= 3 ? 1 : 0) - (has(t, 'phoenix') ? 1 : 0)); t.speed = 0; t.nitro = 0; t.shield = 0; t.burn = null; t.frac = 0;
       t.charge = Math.floor(t.charge / 2); t.crashes++;
       // поломка узла: проявится со следующего этапа
       if (CFG.breakOn && this.rand() < CFG.breakChance) {
@@ -319,7 +320,7 @@
       r.charge = 0; r.shots++;
       const tn = w.tune || {};
       const fire = (t, mult) => {
-        let acc = w.acc * (tn.steady ? 1 : this.mods.accMul || 1) * (1 + (r.morale - 50) / 500); // мораль: твёрдость руки ±10%
+        let acc = w.acc * (tn.steady || has(r, 'rainman') ? 1 : this.mods.accMul || 1) * (1 + (r.morale - 50) / 500); // мораль: твёрдость руки ±10%
         if (!tn.steady && (this.track.cell(r.pos).tunnel || this.track.cell(t.pos).tunnel)) acc *= 0.6;
         const chance = acc * (1 - F.dodge(t));
         const hit = this.rand() < chance;
@@ -330,6 +331,15 @@
         const revenge = has(r, 'avenger') && r.revengeOn === t.id;
         const hunt = has(r, 'hunter') && this.standings().indexOf(t) < 3;
         if (revenge) r.revengeOn = -1;
+        // зеркальная броня: удар уходит обратно в стрелка
+        if (has(t, 'mirror') && mult === 1 && this.rand() < CFG.mirrorChance) {
+          const dr = this.applyDamage(r, Math.round(w.dmg * CFG.dmgMul), w.effect.pierce);
+          r.lastAttacker = t.id;
+          if (dr.crashed) { t.kills++; t.fame += G.ECON.fameCrash; }
+          res.reflected = { dmg: dr.real, absorbed: dr.absorbed, crashed: dr.crashed };
+          res.effects.push(`🪞 отражено в стрелка −${dr.real}`);
+          return res;
+        }
         const smite = w.effect.smite && has(t, 'necro') ? w.effect.smite : 1;
         const crit = tn.crit && this.rand() < (tn.stun ? CFG.critChance3 : CFG.critChance);
         const d = this.applyDamage(t, Math.round(w.dmg * CFG.dmgMul * mult * (crit ? CFG.critMul : 1) * (has(r, 'aggro') ? 1.2 : 1) * (revenge ? 1.5 : 1) * (hunt ? 1.3 : 1) * smite), w.effect.pierce);
@@ -372,7 +382,7 @@
       };
       let hits = targets.map(t => fire(t, 1));
       // двойной выстрел: второй залп по уцелевшим целям
-      if (tn.double && !targets[0].skip && !targets[0].finished) hits.push(fire(targets[0], CFG.doubleMul));
+      if (tn.double && !r.skip && !targets[0].skip && !targets[0].finished) hits.push(fire(targets[0], CFG.doubleMul));
       // запас заряда: после выстрела часть заряда остаётся в магазине
       if (tn.keep) r.charge = Math.floor(w.charge * CFG.keepCharge);
       return { attacker: r, weapon: w, hits };
@@ -384,6 +394,14 @@
       if (has(r, 'drafter') && this.racers.some(o => o !== r && !o.finished && o.pos - r.pos >= 1 && o.pos - r.pos <= 3)) {
         r.speed = Math.min(vm + 0.5, r.speed + 0.5);
         this.fx.push({ id: r.id, text: '🌀 слипстрим', color: '#9fe8ff' });
+      }
+      if (has(r, 'starter') && this.round <= CFG.starterRounds) {
+        r.speed = Math.min(vm, r.speed + CFG.starterBoost);
+        if (this.round === 1) this.fx.push({ id: r.id, text: '🚀 РАКЕТНЫЙ СТАРТ', color: '#ff9a3c' });
+      }
+      if (has(r, 'underdog')) {
+        const st = this.standings();
+        if (st.indexOf(r) >= st.length - CFG.underdogLast) r.speed = Math.min(vm + CFG.underdogBoost, r.speed + CFG.underdogBoost);
       }
       // давка: проверка морали
       let nerve = null;
@@ -442,7 +460,33 @@
       } else r.frac = want - Math.floor(want);
       const from = r.pos;
       if (!skid || !skid.crashed) r.pos += cells; else r.pos += Math.max(0, cells - 1);
+      let nav = null;
+      if (has(r, 'navigator') && !r.skip && r.pos > 1 && r.pos < tr.total - 1) {
+        const N = tr.N, score = p => {
+          const k = tr.cell(p).kind;
+          let v = ['boost', 'nitro', 'ammo', 'repair', 'shield', 'jump'].includes(k) ? 2 : k === 'hazard' ? -3 : 0;
+          const cell = ((Math.floor(p) % N) + N) % N;
+          if (this.undead.some(u => u.alive && u.cell === cell && u.owner !== r.id) && !has(r, 'paladin')) v -= 3;
+          return v;
+        };
+        let best = r.pos, bs = score(r.pos);
+        [r.pos + 1, r.pos - 1].forEach(p => { if (p > from && score(p) > bs) { bs = score(p); best = p; } });
+        if (best !== r.pos) { nav = best - r.pos; r.pos = best; this.fx.push({ id: r.id, text: '🧭 штурман', color: '#9fe8ff' }); }
+      }
       const to = r.pos;
+      // карманник: обчищает обогнанных
+      let pocket = 0;
+      if (has(r, 'pickpocket') && !r.skip) {
+        this.racers.forEach(o => {
+          if (o === r || o.finished || pocket >= CFG.pickpocketMax || !(o.pos > from && o.pos < to)) return;
+          const take = Math.min(o.nitro, CFG.pickpocketTake);
+          if (take > 0) { o.nitro -= take; r.nitro = Math.min(CFG.nitroMax, r.nitro + take); } else r.charge = Math.min(r.weapon.charge, r.charge + CFG.pickpocketTake);
+          pocket++;
+        });
+        if (pocket) this.fx.push({ id: r.id, text: `🦊 обчистил ${pocket}`, color: '#ffb347' });
+      }
+      // комбинатор: каждый N-й ход — спецблок к следующему ходу
+      if (has(r, 'combinator') && (r.moves = (r.moves || 0) + 1) % CFG.combinatorEvery === 0) r.giftSpecial = true;
       // барахольщик: бонусы клеток по пути
       const picked = [];
       if (has(r, 'magnet') && !r.skip) {
@@ -541,7 +585,8 @@
       const fame0 = r.fame;
       if (r.finished) {
         // «Шоу для фанатов»: после финиша поле приносит славу
-        const mv = move && r.board.swapValid(move[0], move[1]) ? move : AI.choose(this, r);
+        if (r.giftSpecial) { r.giftSpecial = false; const gs = r.board.addSpecial(); if (gs) { res.gift = gs; this.fx.push({ id: r.id, text: '🧩 спецблок на поле', color: '#ffd23f' }); } }
+      const mv = move && r.board.swapValid(move[0], move[1]) ? move : AI.choose(this, r);
         res.match = r.board.execute(mv[0], mv[1]);
         const gain = Math.round(res.match.tally.reduce((a, b) => a + b, 0) + res.match.specials * 3);
         r.fame += gain; r.showFame += gain;
@@ -568,7 +613,10 @@
       if (r.skip > 0 && !(res.burn && res.burn.crashed)) {
         r.skip--;
         res.skipped = true;
-        if (r.skip === 0) { r.hp = CFG.crashHp; res.repaired = true; }
+        if (r.skip === 0) {
+          r.hp = has(r, 'phoenix') ? CFG.MAX_HP : CFG.crashHp; res.repaired = true;
+          if (has(r, 'phoenix')) { r.shield = Math.min(CFG.shieldMax, r.shield + CFG.phoenixShield); this.fx.push({ id: r.id, text: '🦅 ВОССТАЁТ ИЗ ПЕПЛА', color: '#ff9a3c' }); }
+        }
         r.board.tickLocks();
         this.advance();
         return res;

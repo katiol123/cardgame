@@ -318,6 +318,16 @@
       if (tries >= 200) this.fill();
     }
 
+    // перк «Комбинатор»: превратить случайный обычный блок в спецблок; возвращает {i, special} или null
+    addSpecial() {
+      const free = [];
+      this.grid.forEach((g, i) => { if (g && !g.special && !g.lock && g.type < TYPES) free.push(i); });
+      if (!free.length) return null;
+      const i = free[Math.floor(this.rand() * free.length)], kinds = ['row', 'col', 'bomb'];
+      const special = kinds[Math.floor(this.rand() * kinds.length)];
+      this.grid[i].special = special;
+      return { i, special };
+    }
     tickLocks() { this.grid.forEach(g => { if (g && g.lock > 0) g.lock--; }); }
 
     lockRandom(k, turns) {

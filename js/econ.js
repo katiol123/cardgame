@@ -46,6 +46,7 @@
     if (!ros.perks.includes('paladin')) G.WEAPONS.forEach(w => {
       if (w.id !== ros.weapon && !w.relic) out.push({ type: 'weapon', key: w.id, full: w.price, sell, price: Math.max(0, w.price - sell) });
     });
+    if (ros.perks.includes('trader')) out.forEach(o => { o.price = Math.max(1, Math.round(o.price * G.CFG.traderMul)); }); // торгаш: −20%
     return out;
   }
 
@@ -180,6 +181,7 @@
     ensure(ros);
     ros.broken = ros.broken.filter(b => {
       b.left--;
+      if (b.left <= 0 && ros.perks.includes('tinker')) { ev.push({ type: 'selffix', stat: b.stat }); return false; } // самоучка чинит сам
       if (b.left <= 0) {
         // спонсор оплатил дешёвую запчасть: поломка ушла, но базовая характеристика упала навсегда
         const loss = Math.min(C.sponsorLoss, ros.stats[b.stat] - 1);

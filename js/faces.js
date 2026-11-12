@@ -317,7 +317,7 @@
     magnet: () => ({ top: `<path d="M24 36 Q50 22 76 36" stroke="#333" stroke-width="2.5" fill="none"/><path d="M40 17 V7 A10 10 0 0 1 60 7 V17 H54 V8 A4 4 0 0 0 46 8 V17Z" fill="#e53935" stroke="#7a1414" stroke-width=".8"/><rect x="40" y="13" width="6" height="4" fill="#ddd"/><rect x="54" y="13" width="6" height="4" fill="#ddd"/><path d="M38 22 l-3 2 M62 22 l3 2" stroke="#9fe8ff" stroke-width="1.2"/>` }),
     // огонь на плечах
     pyro: () => ({ top: `<g class="fx-flame"><path d="M14 100 Q10 88 18 80 Q18 88 22 86 Q22 78 28 74 Q28 84 32 86 Q34 82 36 84 Q34 92 36 100Z" fill="#ff7b00"/><path d="M18 100 Q16 92 22 88 Q24 94 28 92 Q30 96 30 100Z" fill="#ffd23f"/></g>` +
-      `<g class="fx-flame" ${MIRROR}><path d="M14 100 Q10 88 18 80 Q18 88 22 86 Q22 78 28 74 Q28 84 32 86 Q34 82 36 84 Q34 92 36 100Z" fill="#ff7b00"/><path d="M18 100 Q16 92 22 88 Q24 94 28 92 Q30 96 30 100Z" fill="#ffd23f"/></g>` }),
+      `<g ${MIRROR}><g class="fx-flame"><path d="M14 100 Q10 88 18 80 Q18 88 22 86 Q22 78 28 74 Q28 84 32 86 Q34 82 36 84 Q34 92 36 100Z" fill="#ff7b00"/><path d="M18 100 Q16 92 22 88 Q24 94 28 92 Q30 96 30 100Z" fill="#ffd23f"/></g></g>` }),
     // иней на щеках, сосульки и снежинка
     cold: g => ({
       over: `<ellipse cx="${50 - g.eyeGap - 3}" cy="${g.eyeY + 12}" rx="6" ry="3.4" fill="#bfefff" opacity=".45"/><ellipse cx="${50 + g.eyeGap + 3}" cy="${g.eyeY + 12}" rx="6" ry="3.4" fill="#bfefff" opacity=".45"/>` +
@@ -348,13 +348,50 @@
     careful: () => ({ top: `<path d="M23 38 Q25 9 50 9 Q75 9 77 38Z" fill="#3c8d40" stroke="#1f4f22" stroke-width="1.5"/><path d="M39 22 L44 15 H56 L61 22 L56 30 H44Z M44 15 L39 9 M56 15 L61 9 M61 22 H75 M39 22 H25 M44 30 L40 38 M56 30 L60 38" fill="none" stroke="#a8d08d" stroke-width="1.2"/><path d="M19 38 H81" stroke="#1f4f22" stroke-width="3.5" stroke-linecap="round"/>` }),
     // орбита звёздочек над головой
     impulsive: () => ({ top: `<ellipse cx="50" cy="14" rx="27" ry="6" fill="none" stroke="#ffd23f" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/><g class="fx-twinkle" fill="#ffd23f"><path d="${star(24, 15, 4)}"/><path d="${star(72, 10, 3.4)}"/><path d="${star(52, 20, 3)}"/></g><text x="80" y="24" font-size="9" fill="#ff7eb6">?</text>` }),
+    // клетчатая гоночная бандана
+    starter: () => ({ top: `<path d="M23 34 Q50 22 77 34 L77 42 Q50 31 23 42Z" fill="#fff" stroke="#222" stroke-width="1"/>` +
+      `<g fill="#111">${[0, 1, 2, 3, 4, 5, 6, 7].map(i => `<rect x="${25 + i * 6.5}" y="${32 - Math.sin((i + 0.5) / 8 * Math.PI) * 6 + (i % 2 ? 3.5 : 0)}" width="3.3" height="3.6"/>`).join('')}</g>` +
+      `<path d="M76 37 l9 -4 M76 40 l8 4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>` }),
+    // личная тучка с дождиком
+    rainman: () => ({ top: `<g transform="translate(50 13) scale(.85)"><path d="M-16 4 a6 6 0 0 1 5 -8 a8 8 0 0 1 15 -2 a6 6 0 0 1 11 4 a5 5 0 0 1 1 10 h-28 a5 5 0 0 1 -4 -4z" fill="#9aa8bd" stroke="#5e6a7e" stroke-width="1"/>` +
+      `<g stroke="#5ec8ff" stroke-width="1.6" stroke-linecap="round" class="fx-blink"><path d="M-10 12 l-2 5 M-2 12 l-2 6 M6 12 l-2 5 M13 12 l-2 4"/></g></g>` }),
+    // зеркальные авиаторы
+    mirror: g => ({ over: [50 - g.eyeGap, 50 + g.eyeGap].map(x => `<path d="M${x - 7} ${g.eyeY - 4} H${x + 7} Q${x + 7} ${g.eyeY + 7} ${x} ${g.eyeY + 7} Q${x - 7} ${g.eyeY + 7} ${x - 7} ${g.eyeY - 4}Z" fill="url(#mir)" stroke="#c9ced8" stroke-width="1.2"/><path d="M${x - 4} ${g.eyeY - 2} l5 6" stroke="#fff" stroke-width="1.2" opacity=".8"/>`).join('') +
+      `<path d="M${50 - g.eyeGap + 7} ${g.eyeY - 3} H${50 + g.eyeGap - 7}" stroke="#c9ced8" stroke-width="1.4"/>`, defs: `<linearGradient id="mir" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8f1ff"/><stop offset=".5" stop-color="#7d8aa3"/><stop offset="1" stop-color="#2b3344"/></linearGradient>` }),
+    // татуировка-компас на щеке
+    navigator: g => ({ over: `<g transform="translate(${50 - g.eyeGap - 4} ${g.eyeY + 14})" stroke="#2a5b8a" stroke-width="1" fill="none" opacity=".9"><circle r="4.5"/><path d="M0 -7 L1.4 -1.4 L7 0 L1.4 1.4 L0 7 L-1.4 1.4 L-7 0 L-1.4 -1.4Z" fill="#2a5b8a" fill-opacity=".5"/><path d="M0 -7 L1.4 -1.4 L-1.4 -1.4Z" fill="#d7263d" stroke="none"/></g>` }),
+    // лисьи уши и маска-домино
+    pickpocket: g => ({
+      top: `<path d="M25 30 L18 6 L38 22Z" fill="#e8742c" stroke="#8a3b0e" stroke-width="1.2"/><path d="M26 26 L22 12 L33 22Z" fill="#fff3e6"/>` +
+        `<g ${MIRROR}><path d="M25 30 L18 6 L38 22Z" fill="#e8742c" stroke="#8a3b0e" stroke-width="1.2"/><path d="M26 26 L22 12 L33 22Z" fill="#fff3e6"/></g>`,
+      over: `<path d="M${50 - g.eyeGap - 10} ${g.eyeY - 3} Q50 ${g.eyeY - 9} ${50 + g.eyeGap + 10} ${g.eyeY - 3} Q${50 + g.eyeGap + 9} ${g.eyeY + 8} ${50 + g.eyeGap} ${g.eyeY + 6} Q50 ${g.eyeY + 2} ${50 - g.eyeGap} ${g.eyeY + 6} Q${50 - g.eyeGap - 9} ${g.eyeY + 8} ${50 - g.eyeGap - 10} ${g.eyeY - 3}Z" fill="#1b1b22" opacity=".9"/>` +
+        [50 - g.eyeGap, 50 + g.eyeGap].map(x => `<ellipse cx="${x}" cy="${g.eyeY}" rx="3.6" ry="3" fill="#fff"/><circle cx="${x}" cy="${g.eyeY}" r="1.6" fill="#111"/>`).join('')
+    }),
+    // огненные перья у висков
+    phoenix: () => {
+      const wing = [0, 1, 2].map(i => `<path d="M${28 + i} ${44 - i * 5} Q${18 - i} ${38 - i * 7} ${17 - i} ${26 - i * 5} Q${24 - i} ${31 - i * 5} ${31} ${38 - i * 5}Z" fill="${['#ffd23f', '#ff9a00', '#ff3d00'][i]}" stroke="#7a1f00" stroke-width=".5"/>`).join('');
+      return { top: `<g class="fx-flame">${wing}</g><g ${MIRROR}><g class="fx-flame">${wing}</g></g>` };
+    },
+    // самоцветы игрового поля во лбу
+    combinator: g => ({ top: [['#ff7b00', 41], ['#22e3ff', 50], ['#2fdc74', 59]].map(([c, x], i) => `<path d="M${x} ${g.eyeY - 16 - (i === 1 ? 3 : 0)} l4 4.5 -4 4.5 -4 -4.5z" fill="${c}" stroke="#fff" stroke-width=".8" class="fx-glow"/>`).join('') }),
+    // котелок и золотая цепочка часов
+    trader: () => ({ top: `<path d="M22 32 Q50 24 78 32 Q80 36 76 37 Q50 30 24 37 Q20 36 22 32Z" fill="#1a1a1a"/><path d="M32 31 Q32 10 50 10 Q68 10 68 31Z" fill="#222" stroke="#000" stroke-width="1"/><path d="M33 26 Q50 22 67 26 L67 30 Q50 26 33 30Z" fill="#8a1c1c"/>`,
+      back: `<path d="M34 96 Q42 88 52 92 Q58 95 62 90" stroke="#ffd23f" stroke-width="1.6" fill="none" stroke-dasharray="2 1.5"/><circle cx="63" cy="89" r="3.2" fill="#ffd23f" stroke="#a87b00" stroke-width=".8"/>` }),
+    // ожерелье из волчьего клыка и шрамы-когти
+    underdog: g => ({
+      back: `<path d="M34 84 Q50 96 66 84" stroke="#3b2a1a" stroke-width="1.4" fill="none"/><path d="M47 90 L50 99 L53 90Z" fill="#f2ead8" stroke="#8a7f6c" stroke-width=".8"/>`,
+      over: `<path d="M${50 + g.eyeGap + 2} ${g.eyeY + 8} l7 9 M${50 + g.eyeGap + 5} ${g.eyeY + 6} l7 9 M${50 + g.eyeGap + 8} ${g.eyeY + 4} l6 8" stroke="#a3242e" stroke-width="1.5" stroke-linecap="round" opacity=".85"/>`
+    }),
+    // поднятая сварочная маска и гаечный ключ за ухом
+    tinker: () => ({ top: `<path d="M27 28 Q50 14 73 28 L71 36 Q50 26 29 36Z" fill="#3a3f47" stroke="#1d2026" stroke-width="1.2"/><rect x="40" y="22" width="20" height="7" rx="1.5" fill="#1a3a2a" stroke="#888" stroke-width=".8"/><path d="M42 24 h6" stroke="#7dff9a" stroke-width="1" opacity=".6"/>` +
+      `<g transform="translate(80 40) rotate(-35)"><rect x="-1.6" y="-2" width="3.2" height="16" rx="1" fill="#b8bec8"/><path d="M-4 -2 a4 4 0 1 1 8 0 l-2 0 l0 -3 l-4 0 l0 3z" fill="#b8bec8"/></g>` }),
     // закрученные бараньи рога
     ram: () => ({ top: `<path d="M30 30 Q11 24 10 43 Q10 59 25 57 Q17 52 19 45 Q21 37 31 40Z" fill="#c9b18a" stroke="#7a6545" stroke-width="1.2"/><path d="M14 44 Q16 50 22 52 M16 36 Q20 33 26 34" stroke="#7a6545" stroke-width=".8" fill="none"/>` +
       `<g ${MIRROR}><path d="M30 30 Q11 24 10 43 Q10 59 25 57 Q17 52 19 45 Q21 37 31 40Z" fill="#c9b18a" stroke="#7a6545" stroke-width="1.2"/><path d="M14 44 Q16 50 22 52 M16 36 Q20 33 26 34" stroke="#7a6545" stroke-width=".8" fill="none"/></g>` })
   };
   function perkLook(g, perks) {
-    const out = { back: '', over: '', top: '' };
-    (perks || []).forEach(p => { const f = PERK_LOOK[p]; if (!f) return; const l = f(g); out.back += l.back || ''; out.over += l.over || ''; out.top += l.top || ''; });
+    const out = { back: '', over: '', top: '', defs: '' };
+    (perks || []).forEach(p => { const f = PERK_LOOK[p]; if (!f) return; const l = f(g); out.back += l.back || ''; out.over += l.over || ''; out.top += l.top || ''; out.defs += l.defs || ''; });
     return out;
   }
 
@@ -368,6 +405,7 @@
     const hair = hairParts(g, uid);
     let defs = `<radialGradient id="bg${uid}" cx="50%" cy="40%" r="70%"><stop offset="0" stop-color="${color || '#445'}" stop-opacity=".55"/><stop offset="1" stop-color="#05070c" stop-opacity=".95"/></radialGradient>
       <clipPath id="cl${uid}"><circle cx="50" cy="50" r="49"/></clipPath>`;
+    defs += pl.defs;
     if (g.skin2) defs += `<linearGradient id="sk${uid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${skin}"/><stop offset="1" stop-color="${g.skin2}"/></linearGradient>`;
     if (g.hairRainbow) defs += `<linearGradient id="hr${uid}" x1="0" x2="1"><stop offset="0" stop-color="#ff3d6e"/><stop offset=".25" stop-color="#ffe23d"/><stop offset=".5" stop-color="#3dff9a"/><stop offset=".75" stop-color="#3dfcff"/><stop offset="1" stop-color="#b03dff"/></linearGradient>`;
     let extraMood = '';
