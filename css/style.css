@@ -849,3 +849,9 @@ svg.face .fx-tear { animation: fxTear 2s ease-in infinite; }
 .g-lv li.next i { background: transparent; border: 1.5px solid #ffd23f; color: #ffd23f; line-height: 15px; }
 .undead.rise .ud-body { animation: ud-rise 1.2s ease-out, ud-float 2.4s ease-in-out 1.2s infinite; }
 @keyframes ud-rise { 0% { transform: translateY(14px) scale(.2); opacity: 0; } 60% { transform: translateY(-4px) scale(1.15); opacity: 1; } 100% { transform: none; } }
+
+/* классы: тень ассасина, ярость берсерка, корни друида */
+.token.shadow { opacity: .35; filter: grayscale(.6) drop-shadow(0 0 6px #7a5cff); transition: opacity .3s; }
+.token.rage .t-base { stroke: #ff2d2d; stroke-width: 4; filter: drop-shadow(0 0 7px #ff2d2d); animation: rage-pulse .6s ease-in-out infinite alternate; }
+@keyframes rage-pulse { to { filter: drop-shadow(0 0 13px #ff5a2d); } }
+.undead.roots .ud-body { animation: none; }

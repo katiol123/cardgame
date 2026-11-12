@@ -29,7 +29,9 @@
   // ---- производные характеристики ----
   const has = (r, p) => !!(r.perks && r.perks.includes(p));
   const F = {
-    vmax: r => (CFG.vmaxBase + CFG.vmaxPer * r.stats.top + (r.tm.vmaxAdd || 0) - (has(r, 'heavy') ? 0.4 : 0) + (r.lastLap && has(r, 'tactic') ? 2.6 : 0)) * (1 - CFG.hpSpeedFactor * (1 - r.hp / CFG.MAX_HP)),
+    vmax: r => has(r, 'berserker')
+      ? CFG.vmaxBase + CFG.vmaxPer * r.stats.top + (r.tm.vmaxAdd || 0) + CFG.rageMax * (1 - r.hp / CFG.MAX_HP) // ярость: раны разгоняют
+      : (CFG.vmaxBase + CFG.vmaxPer * r.stats.top + (r.tm.vmaxAdd || 0) - (has(r, 'heavy') ? 0.4 : 0) + (r.lastLap && has(r, 'tactic') ? 2.6 : 0)) * (1 - CFG.hpSpeedFactor * (1 - r.hp / CFG.MAX_HP)),
     vmaxRaw: r => CFG.vmaxBase + CFG.vmaxPer * r.stats.top + (r.tm.vmaxAdd || 0) - (has(r, 'heavy') ? 0.4 : 0),
     accel: r => CFG.accBase + CFG.accPer * r.stats.accel,
     corner: (r, sev, grip) => CFG.cornerBase + CFG.cornerPer * r.stats.handling +
@@ -213,12 +215,25 @@
       });
     }
 
+    // архимаг: метеор на ближайшего соперника впереди (или позади, если впереди никого)
+    meteor(r, combo) {
+      const alive = this.racers.filter(o => o !== r && !o.finished && !o.skip);
+      if (!alive.length) return null;
+      const ahead = alive.filter(o => o.pos > r.pos).sort((a, b) => a.pos - b.pos);
+      const t = ahead[0] || alive.sort((a, b) => Math.abs(a.pos - r.pos) - Math.abs(b.pos - r.pos))[0];
+      const d = this.applyDamage(t, CFG.meteorPer * combo, false);
+      t.lastAttacker = r.id; r.dmgDealt += d.real; r.fame += G.ECON.fameHit;
+      if (d.crashed) { r.kills++; r.fame += G.ECON.fameCrash; }
+      this.fx.push({ id: r.id, text: `🧙 МЕТЕОР ×${combo}`, color: '#ff9a3c' });
+      return { target: t, combo, dmg: d.real, absorbed: d.absorbed, crashed: d.crashed };
+    }
+
     // армия растёт: на месте аварии некромант поднимает мертвеца из обломков
     raiseUndead(t) {
       if (!this.undead || t.pos <= 2 || t.pos >= this.track.total) return;
       const N = this.track.N, cell = ((Math.floor(t.pos) % N) + N) % N;
       if (cell < 3 || this.undead.some(u => u.alive && u.cell === cell)) return;
-      const necro = this.racers.find(r => has(r, 'necro') && !r.finished && this.undead.filter(u => u.alive && u.owner === r.id).length < CFG.undeadMax);
+      const necro = this.racers.find(r => has(r, 'necro') && !r.finished && this.undead.filter(u => u.alive && !u.kind && u.owner === r.id).length < CFG.undeadMax);
       if (!necro) return;
       this.undead.push({ id: this.undead.length, cell, owner: necro.id, alive: true, raised: true });
       this.fx.push({ id: t.id, text: '💀 ИЗ ОБЛОМКОВ ВСТАЁТ МЕРТВЕЦ', color: '#7dff9a' });
@@ -231,6 +246,12 @@
       const u = this.undead.find(x => x.alive && x.cell === cell && x.owner !== r.id);
       if (!u) return null;
       const owner = this.racers[u.owner];
+      if (u.kind === 'roots') {
+        u.alive = false; r.stunned = Math.max(r.stunned || 0, 1); r.speed = Math.max(0, r.speed - CFG.rootsSlow);
+        owner.fame += G.ECON.fameHit * 2;
+        this.fx.push({ id: r.id, text: '🌿 ОПЛЕТЁН КОРНЯМИ', color: '#5ee08a' });
+        return { u, owner, roots: true };
+      }
       if (has(r, 'paladin')) {
         u.alive = false; r.fame += CFG.banishFame;
         this.fx.push({ id: r.id, text: '⚜ НЕЖИТЬ ИЗГНАНА', color: '#ffe9a0' });
@@ -320,7 +341,7 @@
     targetsInRange(r) {
       const tr = this.track;
       return this.racers.filter(t => {
-        if (t === r || t.finished || t.skip) return false;
+        if (t === r || t.finished || t.skip || t.shadow) return false;
         if (inSector(r.weapon, t.pos - r.pos)) return true;
         if (this.mods.crossShots) { // мост «восьмёрки»: цель физически рядом
           const a = tr.cell(r.pos), b = tr.cell(t.pos);
@@ -361,8 +382,13 @@
           return res;
         }
         const smite = w.effect.smite && has(t, 'necro') ? w.effect.smite : 1;
+        const firstBlood = has(r, 'assassin') && !(r.marked = r.marked || {})[t.id];
+        if (firstBlood) { r.marked[t.id] = true; res.effects.push('🗡 удар из тени ×' + CFG.assassinMul); }
+        const rage = has(r, 'berserker') && r.hp < CFG.rageHp ? CFG.rageDmg : 1;
+        if (rage > 1) res.effects.push('🪓 ярость ×1,5');
         const crit = tn.crit && this.rand() < (tn.stun ? CFG.critChance3 : CFG.critChance);
-        const d = this.applyDamage(t, Math.round(w.dmg * CFG.dmgMul * mult * (crit ? CFG.critMul : 1) * (has(r, 'aggro') ? 1.2 : 1) * (revenge ? 1.5 : 1) * (hunt ? 1.3 : 1) * smite), w.effect.pierce);
+        const d = this.applyDamage(t, Math.round(w.dmg * CFG.dmgMul * mult * (crit ? CFG.critMul : 1) * (has(r, 'aggro') ? 1.2 : 1) * (revenge ? 1.5 : 1) * (hunt ? 1.3 : 1) * smite * (firstBlood ? CFG.assassinMul : 1) * rage), w.effect.pierce || firstBlood);
+        if (has(r, 'assassin') && !r.shadow) { r.shadow = true; this.fx.push({ id: r.id, text: '🗡 УХОДИТ В ТЕНЬ', color: '#b9a6ff' }); }
         const em = (tn.fxMul || 1) * (crit ? CFG.critFx : 1), f1 = v => Math.round(v * em * 10) / 10; // сила эффектов пушки
         if (mult < 1) res.effects.push('второй залп');
         if (crit) { res.crit = true; r.speed = Math.min(F.vmax(r) + 1, r.speed + CFG.critRush); res.effects.push('КРИТ ×' + String(CFG.critMul).replace('.', ',')); }
@@ -505,6 +531,11 @@
         });
         if (pocket) this.fx.push({ id: r.id, text: `🦊 обчистил ${pocket}`, color: '#ffb347' });
       }
+      // друид: на новом круге оставляет позади оплетающие корни
+      if (has(r, 'druid') && Math.floor(to / tr.N) > Math.floor(from / tr.N) && to < tr.total && this.undead.filter(u => u.alive && u.kind === 'roots' && u.owner === r.id).length < CFG.rootsMax) {
+        const cell = ((Math.floor(to) - 2) % tr.N + tr.N) % tr.N;
+        if (cell >= 3 && !this.undead.some(u => u.alive && u.cell === cell)) { this.undead.push({ id: this.undead.length, cell, owner: r.id, alive: true, kind: 'roots' }); this.fx.push({ id: r.id, text: '🌿 КОРНИ', color: '#5ee08a' }); }
+      }
       // комбинатор: каждый N-й ход — спецблок к следующему ходу
       if (has(r, 'combinator') && (r.moves = (r.moves || 0) + 1) % CFG.combinatorEvery === 0) r.giftSpecial = true;
       // барахольщик: бонусы клеток по пути
@@ -584,6 +615,8 @@
       else if (c.kind === 'jump') {
         fx.from = r.pos; r.pos += tr.jumpLen + (stunt ? 2 : 0); fx.to = r.pos;
         const d = this.applyDamage(r, stunt ? 0 : 4, false); fx.dmg = d.real; fx.crashed = d.crashed;
+      } else if (c.kind === 'hazard' && has(r, 'druid')) {
+        r.hp = Math.min(CFG.MAX_HP, r.hp + CFG.druidHeal); r.speed = Math.min(vm, r.speed + 1); fx.druid = true;
       } else if (c.kind === 'hazard') {
         const d = this.applyDamage(r, stunt ? 0 : Math.round(7 * (this.mods.hazardMul || 1)), false);
         if (!stunt) r.speed = Math.max(0, r.speed - 1);
@@ -601,6 +634,7 @@
     playTurn(move) {
       if (this.over) return null;
       const r = this.current;
+      r.shadow = false; // ассасин выходит из тени на своём ходу
       const res = { racer: r, round: this.round, idx: this.turn };
       const fame0 = r.fame;
       if (r.finished) {
@@ -650,11 +684,18 @@
         this.fx.push({ id: r.id, text: `🎲 ВЕЗЕНИЕ: улов ×2`, color: '#ffd23f' });
       }
       res.gains = this.applyGains(r, res.match.tally);
+      if (has(r, 'archmage') && res.match.combo >= 3) res.meteor = this.meteor(r, res.match.combo);
       if (r.crew.mech) r.hp = Math.min(CFG.MAX_HP, r.hp + 1.5 * r.crew.mech);
       if (has(r, 'gambler') && this.rand() < 0.15) this.jackpot(r);
       res.attack = this.tryAttack(r);
       res.move = this.move(r);
       res.fame = r.fame - fame0;
+      // алхимик: трансмутация к следующему ходу (игрок увидит уже готовое поле)
+      if (has(r, 'alchemist') && !r.finished && !r.skip) {
+        const W = AI.weights(this, r), t = W.indexOf(Math.max(...W));
+        const ids = r.board.transmute(t, CFG.transmuteCount);
+        if (ids.length) res.transmute = { type: t, ids };
+      }
       r.board.tickLocks();
       this.advance();
       return res;

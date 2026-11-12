@@ -385,6 +385,29 @@
     // поднятая сварочная маска и гаечный ключ за ухом
     tinker: () => ({ top: `<path d="M27 28 Q50 14 73 28 L71 36 Q50 26 29 36Z" fill="#3a3f47" stroke="#1d2026" stroke-width="1.2"/><rect x="40" y="22" width="20" height="7" rx="1.5" fill="#1a3a2a" stroke="#888" stroke-width=".8"/><path d="M42 24 h6" stroke="#7dff9a" stroke-width="1" opacity=".6"/>` +
       `<g transform="translate(80 40) rotate(-35)"><rect x="-1.6" y="-2" width="3.2" height="16" rx="1" fill="#b8bec8"/><path d="M-4 -2 a4 4 0 1 1 8 0 l-2 0 l0 -3 l-4 0 l0 3z" fill="#b8bec8"/></g>` }),
+    // алхимик: очки-лупы с цветными линзами и флакон-серьга
+    alchemist: g => ({ over: [[50 - g.eyeGap, '#7dff9a'], [50 + g.eyeGap, '#c38bff']].map(([x, c]) => `<circle cx="${x}" cy="${g.eyeY}" r="6.5" fill="${c}" fill-opacity=".45" stroke="#a87b3a" stroke-width="2.2"/><circle cx="${x - 2}" cy="${g.eyeY - 2}" r="1.5" fill="#fff" opacity=".7"/>`).join('') +
+      `<path d="M${50 - g.eyeGap + 6.5} ${g.eyeY} H${50 + g.eyeGap - 6.5}" stroke="#a87b3a" stroke-width="1.8"/>` +
+      `<g transform="translate(${g.ears === 'big' ? 13 : 20} ${g.eyeY + 14})"><path d="M0 -4 V-1" stroke="#ffd23f" stroke-width=".8"/><rect x="-1.2" y="-1.5" width="2.4" height="2" fill="#c9b18a"/><path d="M-2.6 0.5 h5.2 l1.4 6 a3 3 0 0 1 -3 3 h-2 a3 3 0 0 1 -3 -3z" fill="#7dff9a" fill-opacity=".85" stroke="#2c6b3d" stroke-width=".6" class="fx-glow"/></g>` }),
+    // архимаг: остроконечная шляпа со звёздами
+    archmage: () => ({ top: `<path d="M18 38 Q50 30 82 38 Q80 42 74 42 Q50 36 26 42 Q20 42 18 38Z" fill="#2a1f6b" stroke="#120c3a" stroke-width="1"/><path d="M30 38 Q40 20 52 2 Q56 10 62 14 Q60 24 70 38 Q50 32 30 38Z" fill="#3b2a9a" stroke="#120c3a" stroke-width="1"/>` +
+      `<g fill="#ffd23f" class="fx-twinkle"><path d="M44 26 l1.2 3 3 1.2 -3 1.2 -1.2 3 -1.2 -3 -3 -1.2 3 -1.2z"/><path d="M57 18 l.9 2.2 2.2 .9 -2.2 .9 -.9 2.2 -.9 -2.2 -2.2 -.9 2.2 -.9z"/><circle cx="52" cy="31" r="1.2"/></g><circle cx="52" cy="3" r="2.2" fill="#ffd23f"/>` }),
+    // ассасин: тёмный капюшон и маска на нижней половине лица
+    assassin: g => ({
+      back: `<path d="M12 100 Q10 40 50 10 Q90 40 88 100Z" fill="#1d1a26" stroke="#3a3350" stroke-width="1.2"/>`,
+      over: `<path d="M25 ${g.noseY - 4} Q50 ${g.noseY - 9} 75 ${g.noseY - 4} L74 82 Q50 96 26 82Z" fill="#231f2e" stroke="#3a3350" stroke-width="1"/><path d="M30 ${g.noseY + 4} Q50 ${g.noseY} 70 ${g.noseY + 4}" stroke="#3a3350" stroke-width="1" fill="none"/>`,
+      top: `<path d="M16 100 Q18 50 30 30 Q50 8 70 30 Q82 50 84 100 L79 100 Q77 54 67 38 Q50 18 33 38 Q23 54 21 100Z" fill="#26222f"/>`
+    }),
+    // берсерк: кровавый отпечаток ладони и меховая накидка
+    berserker: g => ({
+      back: `<g fill="#6b4a2b" stroke="#3b2414" stroke-width=".8">${[14, 24, 34, 66, 76, 86].map((x, i) => `<path d="M${x - 8} 100 Q${x - 6} ${84 + (i % 3)} ${x} ${82 + (i % 2) * 2} Q${x + 6} ${84 + (i % 3)} ${x + 8} 100Z"/>`).join('')}</g>`,
+      over: `<g fill="#b3121f" opacity=".8" transform="translate(${50 + g.eyeGap - 2} ${g.eyeY + 2}) rotate(-12)"><ellipse cx="0" cy="4" rx="5" ry="5.5"/><rect x="-5" y="-8" width="2.2" height="9" rx="1.1"/><rect x="-2.2" y="-10" width="2.2" height="11" rx="1.1"/><rect x=".6" y="-9.5" width="2.2" height="10.5" rx="1.1"/><rect x="3.4" y="-7" width="2" height="8" rx="1"/><rect x="5" y="1" width="4.5" height="2" rx="1" transform="rotate(-30 5 1)"/></g>`
+    }),
+    // друид: оленьи рога с листьями
+    druid: () => {
+      const horn = `<path d="M34 28 Q28 16 30 4 M31 15 Q24 12 20 6 M30 9 Q34 5 36 2" fill="none" stroke="#8a5a2b" stroke-width="3.6" stroke-linecap="round"/><g fill="#5ee08a" stroke="#2c6b3d" stroke-width=".6"><ellipse cx="22" cy="10" rx="3.2" ry="1.8" transform="rotate(-40 22 10)"/><ellipse cx="33" cy="20" rx="3" ry="1.6" transform="rotate(30 33 20)"/><ellipse cx="36" cy="5" rx="2.6" ry="1.5"/></g>`;
+      return { top: `<g transform="translate(-2 9)">${horn}</g><g ${MIRROR}><g transform="translate(-2 9)">${horn}</g></g><path d="M28 34 Q50 26 72 34" stroke="#3fae5f" stroke-width="2.2" fill="none"/><g fill="#7ee08a">${[32, 41, 50, 59, 68].map((x, i) => `<ellipse cx="${x}" cy="${32 - Math.sin(i / 4 * Math.PI) * 4}" rx="2.8" ry="1.6" transform="rotate(${i * 25 - 50} ${x} ${32 - Math.sin(i / 4 * Math.PI) * 4})"/>`).join('')}</g>` };
+    },
     // закрученные бараньи рога
     ram: () => ({ top: `<path d="M30 30 Q11 24 10 43 Q10 59 25 57 Q17 52 19 45 Q21 37 31 40Z" fill="#c9b18a" stroke="#7a6545" stroke-width="1.2"/><path d="M14 44 Q16 50 22 52 M16 36 Q20 33 26 34" stroke="#7a6545" stroke-width=".8" fill="none"/>` +
       `<g ${MIRROR}><path d="M30 30 Q11 24 10 43 Q10 59 25 57 Q17 52 19 45 Q21 37 31 40Z" fill="#c9b18a" stroke="#7a6545" stroke-width="1.2"/><path d="M14 44 Q16 50 22 52 M16 36 Q20 33 26 34" stroke="#7a6545" stroke-width=".8" fill="none"/></g>` })

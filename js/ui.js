@@ -144,6 +144,11 @@
       g.innerHTML = race.undead.map(u => {
         const p = race.track.pointAt(u.cell), o = race.racers[u.owner];
         const nx = -Math.sin(p.a), ny = Math.cos(p.a), x = p.x + nx * 30, y = p.y + ny * 30;
+        if (u.kind === 'roots') return `<g class="undead roots${u.alive ? '' : ' gone'}" data-u="${u.id}" transform="translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})">
+          <title>Корни друида ${o.name} — клетка ${u.cell}: оплетают того, кто здесь остановится</title>
+          <g class="ud-body"><circle r="17" fill="rgba(60,200,110,.16)"/><g fill="none" stroke="#3fae5f" stroke-width="2.6" stroke-linecap="round">
+          <path d="M-14 6 Q-6 -10 0 2 Q6 14 14 -4"/><path d="M-12 -8 Q-2 4 6 -12"/><path d="M-4 12 Q4 2 12 10"/></g>
+          <g fill="#7ee08a"><ellipse cx="-6" cy="-9" rx="3" ry="1.6" transform="rotate(-30 -6 -9)"/><ellipse cx="9" cy="-6" rx="3" ry="1.6" transform="rotate(30 9 -6)"/><ellipse cx="4" cy="9" rx="3" ry="1.6"/></g></g></g>`;
         return `<g class="undead${u.alive ? '' : ' gone'}" data-u="${u.id}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})">
           <title>Нежить некроманта ${o.name} — клетка ${u.cell}: бьёт тех, кто закончит здесь ход</title>
           <line x1="0" y1="0" x2="${(-nx * 30).toFixed(1)}" y2="${(-ny * 30).toFixed(1)}" class="ud-tether"/>
@@ -275,6 +280,8 @@
         t.el.classList.toggle('acting', r.id === state.acting);
         t.el.classList.toggle('wrecked', r.skip > 0);
         t.el.classList.toggle('done', r.finished);
+        t.el.classList.toggle('shadow', !!r.shadow);
+        t.el.classList.toggle('rage', r.perks.includes('berserker') && r.hp < CFG.rageHp && !r.skip && !r.finished);
         // круг: значок на фишках 2-го круга и дальше; другой круг, чем у выбранного, — полупрозрачно
         const lap = race.lapOf(r), selLap = race.lapOf(race.racers[state.selected]);
         t.el.classList.toggle('lap2', lap === 2); t.el.classList.toggle('lap3', lap >= 3);
@@ -913,11 +920,35 @@
       if (!alive()) return;
       showGains(res);
       Card.update(r);
+      if (res.transmute) {
+        BV.sync(r.board.snapshot());
+        res.transmute.ids.forEach(i => { const p = BV.center(i); boardFx.flash(p.x, p.y, '#ffd23f', 50, 0.4); boardFx.burst(p.x, p.y, GEMS[res.transmute.type].color, 18, { speed: 140, life: 0.7, g: -40, size: 3 }); BV.toast('⚗ ' + GEMS[res.transmute.type].name, p, '#ffd23f'); });
+        snd('born');
+      }
     } else {
       Stand.flash(r.id, 'think');
       await wait(140);
     }
     if (res.match.combo >= 3 || res.match.specials >= 2) log(`${nm(r)}: каскад ×${res.match.combo}, сожжено блоков: ${res.match.totalCleared}`, 'cmb');
+    // --- метеор архимага ---
+    if (res.meteor) {
+      const m = res.meteor, b = TV.xy(m.target.id), a0 = { x: b.x + 140, y: b.y - 320 };
+      snd('whoosh');
+      await FXS.fly(a0, b, 0.6 / Math.min(state.speed, 4), 0, p => {
+        trackFx.add({ x: p.x, y: p.y, vx: 0, vy: 0, size: 14, color: '#ffb000', max: 0.3, shape: 'dot' });
+        trackFx.add({ x: p.x + (Math.random() - 0.5) * 12, y: p.y + (Math.random() - 0.5) * 12, vx: 0, vy: -20, size: 6, color: '#ff3d00', max: 0.5, shape: 'dot' });
+      });
+      if (!alive()) return;
+      snd('bomb');
+      trackFx.flash(b.x, b.y, '#ff9a3c', 90, 0.5); trackFx.ring(b.x, b.y, '#ffd23f', 80, { life: 0.6, width: 7 });
+      trackFx.burst(b.x, b.y, '#ff7a00', 40, { speed: 340, life: 0.8, g: 220, size: 5 }); trackFx.smoke(b.x, b.y, 14, { size: 14 });
+      trackFx.text(b.x, b.y - 30, `☄ −${m.dmg}`, '#ffb000', { size: 22 });
+      TV.tokens[m.target.id].shake = 16; Stand.flash(m.target.id, 'hurt');
+      if (m.crashed) FXS.crash(m.target.id);
+      if (m.target.id === state.selected) Card.update(m.target);
+      log(`🧙 ${nm(r)}: каскад ×${m.combo} обрушивает метеор на ${nm(m.target)}: <span class="dmg">−${m.dmg}</span>${m.absorbed ? ` <span class="abs">(щит ${m.absorbed})</span>` : ''}${m.crashed ? ' · <b class="bad">АВАРИЯ!</b>' : ''}`, m.crashed ? 'bad' : 'atk');
+      await wait(200);
+    }
     // --- атака ---
     if (res.attack) {
       const att = res.attack;
@@ -987,8 +1018,14 @@
     if (mv.undead) {
       const u = mv.undead, el = document.querySelector(`#undead [data-u="${u.u.id}"]`);
       if (el) { el.classList.remove('strike'); void el.getBBox(); el.classList.add('strike'); }
-      snd(u.banished ? 'banish' : 'undead', { hit: u.hit });
-      if (u.banished) {
+      if (u.roots) {
+        snd('ram');
+        trackFx.flash(p1.x, p1.y, '#5ee08a', 50, 0.4); trackFx.burst(p1.x, p1.y, '#7ee08a', 20, { speed: 120, life: 0.7, g: 0 });
+        trackFx.text(p1.x, p1.y - 30, '🌿 ОПЛЕТЁН', '#7ee08a', { size: 16 });
+        TV.tokens[r.id].shake = 8; TV.undeadSync(race);
+        log(`🌿 Корни друида ${nm(u.owner)} оплетают ${nm(r)}: −${CFG.rootsSlow} скорости и пропуск хода`, 'atk');
+      } else snd(u.banished ? 'banish' : 'undead', { hit: u.hit });
+      if (u.roots) { /* уже показано */ } else if (u.banished) {
         trackFx.flash(p1.x, p1.y, '#ffe9a0', 60, 0.5); trackFx.ring(p1.x, p1.y, '#ffe9a0', 46, { life: 0.7 });
         trackFx.burst(p1.x, p1.y, '#fff6d0', 26, { speed: 160, life: 0.8, g: -60 });
         trackFx.text(p1.x, p1.y - 30, '⚜ НЕЖИТЬ ИЗГНАНА', '#ffe9a0', { size: 15 });
@@ -1011,7 +1048,7 @@
       snd(k === 'jump' ? 'jump' : 'pickup', { kind: k });
       trackFx.ring(p1.x, p1.y, Art.CELL_COLOR[k], 30, { life: 0.5 });
       const hz = k === 'hazard' && race.track.def.hazardName;
-      trackFx.text(p1.x, p1.y + 24, hz ? `${hz}! −${mv.cellFx.dmg}` : k === 'hazard' ? `Обломки! −${mv.cellFx.dmg}` : CELL_FX[k].text, Art.CELL_COLOR[k], { size: 12, life: 1.1, rise: 20 });
+      trackFx.text(p1.x, p1.y + 24, mv.cellFx.druid ? `🌿 +${CFG.druidHeal} прочности` : hz ? `${hz}! −${mv.cellFx.dmg}` : k === 'hazard' ? `Обломки! −${mv.cellFx.dmg}` : CELL_FX[k].text, Art.CELL_COLOR[k], { size: 12, life: 1.1, rise: 20 });
       if (k === 'jump') {
         trackFx.text(p1.x, p1.y - 30, 'ПРЫЖОК!', '#ffd23f', { size: 18 });
         trackFx.smoke(p1.x, p1.y, 8, { size: 9 });

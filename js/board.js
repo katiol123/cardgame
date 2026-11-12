@@ -328,6 +328,19 @@
       this.grid[i].special = special;
       return { i, special };
     }
+    // перк «Алхимик»: превратить до k обычных блоков в тип t, не создавая готовых троек; возвращает индексы
+    transmute(t, k) {
+      const cand = [];
+      this.grid.forEach((g, i) => { if (g && !g.special && !g.lock && g.type < TYPES && g.type !== t) cand.push(i); });
+      const done = [];
+      while (cand.length && done.length < k) {
+        const i = cand.splice(Math.floor(this.rand() * cand.length), 1)[0], was = this.grid[i].type;
+        this.grid[i].type = t;
+        if (this.matchAt(i)) this.grid[i].type = was; else done.push(i);
+      }
+      if (!this.hasMove()) { this.shuffle(); return []; }
+      return done;
+    }
     tickLocks() { this.grid.forEach(g => { if (g && g.lock > 0) g.lock--; }); }
 
     lockRandom(k, turns) {
